@@ -616,3 +616,23 @@ export const getRegionDisplayName = (regionEmoji: string, language: 'en' | 'zh' 
 export const getSupportedRegions = (): string[] => {
   return Object.keys(emojiToRegionMap);
 };
+
+/** 将旗帜 emoji 或两位地区代码规范化为 ISO 风格代码。 */
+export const getRegionCode = (region: string): string => {
+  const normalized = region.trim();
+  if (/^[a-z]{2}$/i.test(normalized)) return normalized.toUpperCase();
+  const chars = Array.from(normalized);
+  if (chars.length !== 2) return "";
+  const base = 0x1f1e6;
+  const points = chars.map((char) => char.codePointAt(0) ?? 0);
+  if (points.some((point) => point < base || point > 0x1f1ff)) return "";
+  return points
+    .map((point) => String.fromCharCode(65 + point - base))
+    .join("");
+};
+
+const supportedRegionCodes = new Set(getSupportedRegions().map(getRegionCode));
+
+/** 国家/地区代码由 region 字段承载，不再作为普通自定义标签展示。 */
+export const isRegionCodeTag = (tag: string): boolean =>
+  supportedRegionCodes.has(tag.trim().toUpperCase());

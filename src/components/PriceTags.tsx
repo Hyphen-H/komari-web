@@ -1,5 +1,6 @@
 import { Badge, Flex } from "@radix-ui/themes";
 import { useTranslation } from "react-i18next";
+import { isRegionCodeTag } from "@/utils/regionHelper";
 
 const PriceTags = ({
   price = 0,
@@ -123,7 +124,9 @@ const CustomTags = ({ tags }: { tags?: string }) => {
   if (!tags || tags.trim() === "") {
     return <></>;
   }
-  const tagList = tags.split(";").filter((tag) => tag.trim() !== "");
+  const tagList = tags
+    .split(";")
+    .filter((tag) => tag.trim() !== "" && !isRegionCodeTag(tag));
   const colors: Array<
     | "ruby"
     | "gray"

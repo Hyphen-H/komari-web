@@ -34,6 +34,7 @@ import {
   Settings,
   Terminal,
   Trash2Icon,
+  X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -86,6 +87,11 @@ import {
 import { useSettings } from "@/lib/api";
 import { SelectOrInput } from "@/components/ui/select-or-input";
 import { useRPC2Call } from "@/contexts/RPC2Context";
+import {
+  getRegionDisplayName,
+  getSupportedRegions,
+  isRegionCodeTag,
+} from "@/utils/regionHelper";
 
 
 const NodeDetailsPage = () => {
@@ -122,7 +128,7 @@ const Layout = () => {
           .split(";")
           .forEach((tag: string) => {
             const trimmed = tag.trim();
-            if (trimmed) set.add(trimmed);
+            if (trimmed && !isRegionCodeTag(trimmed)) set.add(trimmed);
           });
       }
     });
@@ -292,7 +298,7 @@ const AutoDiscoverySection = ({
       excludeNics: "",
       includeMountpoints: "",
       interval: "",
-      monthRotate: "",
+      monthRotate: "1",
       installVersion: "",
     });
 
@@ -305,21 +311,9 @@ const AutoDiscoverySection = ({
   const [enableIncludeMountpoints, setEnableIncludeMountpoints] =
     React.useState(false);
   const [enableInterval, setEnableInterval] = React.useState(false);
-  const [enableMonthRotate, setEnableMonthRotate] = React.useState(false);
+  const [enableMonthRotate, setEnableMonthRotate] = React.useState(true);
   const [enableInstallVersion, setEnableInstallVersion] = React.useState(false);
   const isSnapshotBackend = useIsSnapshotBackend();
-
-  React.useEffect(() => {
-    if (!showOptions || !isSnapshotBackend) {
-      return;
-    }
-
-    setEnableInstallVersion(true);
-    setInstallOptions((prev) => ({
-      ...prev,
-      installVersion: prev.installVersion.trim() || "snapshot",
-    }));
-  }, [showOptions, isSnapshotBackend]);
 
   const generateCommand = () => {
     const host = (function () {
@@ -737,7 +731,7 @@ const AutoDiscoverySection = ({
             </Flex>
             {enableInstallVersion && (
               <TextField.Root
-                placeholder="snapshot"
+                placeholder={isSnapshotBackend ? "snapshot" : "latest"}
                 value={installOptions.installVersion}
                 onChange={(e) =>
                   setInstallOptions((prev) => ({
@@ -1678,7 +1672,7 @@ function GenerateCommandButton({
     excludeNics: "",
     includeMountpoints: "",
     interval: "",
-    monthRotate: "",
+    monthRotate: "1",
     installVersion: "",
   });
 
@@ -1691,20 +1685,8 @@ function GenerateCommandButton({
   const [enableIncludeMountpoints, setEnableIncludeMountpoints] =
     React.useState(false);
   const [enableInterval, setEnableInterval] = React.useState(false);
-  const [enableMonthRotate, setEnableMonthRotate] = React.useState(false);
+  const [enableMonthRotate, setEnableMonthRotate] = React.useState(true);
   const [enableInstallVersion, setEnableInstallVersion] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!isSnapshotBackend) {
-      return;
-    }
-
-    setEnableInstallVersion(true);
-    setInstallOptions((prev) => ({
-      ...prev,
-      installVersion: prev.installVersion.trim() || "snapshot",
-    }));
-  }, [isSnapshotBackend]);
 
   const generateCommand = () => {
     const host = function () {
@@ -2060,7 +2042,7 @@ function GenerateCommandButton({
               </Flex>
               {enableInstallVersion && (
                 <TextField.Root
-                  placeholder="snapshot"
+                  placeholder={isSnapshotBackend ? "snapshot" : "latest"}
                   value={installOptions.installVersion}
                   onChange={(e) =>
                     setInstallOptions((prev) => ({
@@ -2475,6 +2457,107 @@ function GenerateCommandButton({
   );
 }
 
+function normalizeEditableTags(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(";")
+        .map((tag) => tag.trim())
+        .filter((tag) => tag && !isRegionCodeTag(tag)),
+    ),
+  );
+}
+
+function TagChipInput({
+  value,
+  options,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = React.useState("");
+  const tags = React.useMemo(() => normalizeEditableTags(value), [value]);
+
+  const commit = React.useCallback(
+    (items: string[]) => {
+      onChange(Array.from(new Set([...tags, ...items.flatMap(normalizeEditableTags)])).join(";"));
+    },
+    [onChange, tags],
+  );
+
+  const remove = (tag: string) => {
+    onChange(tags.filter((item) => item !== tag).join(";"));
+  };
+
+  return (
+    <div className="rounded-md border border-gray-6 bg-gray-1 p-2">
+      <Flex gap="2" wrap="wrap" align="center">
+        {tags.map((tag) => (
+          <Badge key={tag} variant="soft" size="2" className="gap-1">
+            {tag}
+            <button
+              type="button"
+              className="inline-flex cursor-pointer items-center rounded-sm opacity-60 hover:opacity-100"
+              onClick={() => remove(tag)}
+              aria-label={`删除标签 ${tag}`}
+            >
+              <X size={12} />
+            </button>
+          </Badge>
+        ))}
+        <TextField.Root
+          value={draft}
+          placeholder={tags.length ? "继续添加标签" : placeholder}
+          className="min-w-40 flex-1"
+          onChange={(event) => {
+            const next = event.target.value;
+            if (!next.includes(";")) {
+              setDraft(next);
+              return;
+            }
+            const parts = next.split(";");
+            commit(parts.slice(0, -1));
+            setDraft(parts.at(-1) ?? "");
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== ";") return;
+            event.preventDefault();
+            commit([draft]);
+            setDraft("");
+          }}
+          onBlur={() => {
+            if (!draft.trim()) return;
+            commit([draft]);
+            setDraft("");
+          }}
+        />
+      </Flex>
+      {options.some((option) => !tags.includes(option)) && (
+        <Flex gap="1" wrap="wrap" align="center" mt="2">
+          <Text size="1" color="gray">已有标签：</Text>
+          {options
+            .filter((option) => !tags.includes(option))
+            .map((option) => (
+              <Badge
+                key={option}
+                variant="outline"
+                color="gray"
+                className="cursor-pointer select-none"
+                onClick={() => commit([option])}
+              >
+                <Plus size={10} /> {option}
+              </Badge>
+            ))}
+        </Flex>
+      )}
+    </div>
+  );
+}
+
 function EditButton({ node }: { node: NodeDetail }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -2490,6 +2573,7 @@ function EditButton({ node }: { node: NodeDetail }) {
   const [trafficLimitInvalid, setTrafficLimitInvalid] = useState(false);
   const [groupValue, setGroupValue] = useState<string>(String(node.group || ""));
   const [tagsValue, setTagsValue] = useState<string>(String(node.tags || ""));
+  const [regionValue, setRegionValue] = useState<string>(String(node.region || ""));
   const [adHostValue, setAdHostValue] = useState<string>(
     String(node.auto_discovery_host || "")
   );
@@ -2511,7 +2595,7 @@ function EditButton({ node }: { node: NodeDetail }) {
           .split(";")
           .forEach((tag: string) => {
             const trimmed = tag.trim();
-            if (trimmed) set.add(trimmed);
+            if (trimmed && !isRegionCodeTag(trimmed)) set.add(trimmed);
           });
       }
     });
@@ -2526,6 +2610,7 @@ function EditButton({ node }: { node: NodeDetail }) {
     setTrafficLimitInvalid(false);
     setGroupValue(node.group || "");
     setTagsValue(node.tags || "");
+    setRegionValue(node.region || "");
     setAdHostValue(node.auto_discovery_host || "");
   }, [
     node.hidden,
@@ -2533,6 +2618,7 @@ function EditButton({ node }: { node: NodeDetail }) {
     node.traffic_limit_type,
     node.group,
     node.tags,
+    node.region,
     node.auto_discovery_host,
   ]);
 
@@ -2555,7 +2641,8 @@ function EditButton({ node }: { node: NodeDetail }) {
           remark: privateRemarkRef.current?.value,
           public_remark: publicRemarkRef.current?.value,
           group: groupValue,
-          tags: tagsValue,
+          tags: normalizeEditableTags(tagsValue).join(";"),
+          region: regionValue.trim(),
           auto_discovery_host: adHostValue.trim(),
           hidden,
           traffic_limit,
@@ -2623,23 +2710,25 @@ function EditButton({ node }: { node: NodeDetail }) {
                 />
               </Tips>
             </label>
-            <SelectOrInput
+            <TagChipInput
               options={tagOptions}
               value={tagsValue}
-              onChange={(value, option) => {
-                if (option) {
-                  // 选择已有标签：追加到当前值（去重），仍可手动输入新标签
-                  const parts = tagsValue
-                    .split(";")
-                    .map((tag: string) => tag.trim())
-                    .filter(Boolean);
-                  if (!parts.includes(value)) parts.push(value);
-                  setTagsValue(parts.join(";"));
-                } else {
-                  setTagsValue(value);
-                }
-              }}
+              onChange={setTagsValue}
               placeholder={t("common.tagsDescription")}
+            />
+          </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium text-muted-foreground">
+              {t("common.region", "国家/地区")}
+            </label>
+            <SelectOrInput
+              options={getSupportedRegions().map((region) => ({
+                value: region,
+                label: `${region} ${getRegionDisplayName(region)}`,
+              }))}
+              value={regionValue}
+              onChange={setRegionValue}
+              placeholder={t("common.region", "国家/地区")}
             />
           </div>
           <div>

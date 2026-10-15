@@ -14,7 +14,11 @@ import type { NodeBasicInfo } from "@/contexts/NodeListContext";
 import type { LiveData } from "../types/LiveData";
 import { NodeGrid } from "./Node";
 const NodeTable = React.lazy(() => import("./NodeTable"));
-import { isRegionMatch } from "@/utils/regionHelper";
+import {
+  getRegionDisplayName,
+  isRegionCodeTag,
+  isRegionMatch,
+} from "@/utils/regionHelper";
 import "./NodeDisplay.css";
 
 export type ViewMode = "grid" | "table";
@@ -39,6 +43,10 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
     "nodeSelectedTags",
     [],
   );
+  const [selectedRegion, setSelectedRegion] = useLocalStorage<string>(
+    "nodeSelectedRegion",
+    "all",
+  );
   const searchRef = useRef<HTMLInputElement>(null);
   const onlineSet = useMemo(() => new Set(liveData?.online ?? []), [liveData]);
 
@@ -60,7 +68,7 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
       if (node.tags) {
         node.tags.split(";").forEach((t) => {
           const tt = t.trim();
-          if (tt) {
+          if (tt && !isRegionCodeTag(tt)) {
             tagSet.add(tt);
           }
         });
@@ -68,6 +76,31 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
     });
     return Array.from(tagSet).sort();
   }, [nodes]);
+
+  const regions = useMemo(() => {
+    const regionSet = new Set<string>();
+    nodes.forEach((node) => {
+      if (node.region?.trim()) regionSet.add(node.region.trim());
+    });
+    return Array.from(regionSet).sort((left, right) =>
+      getRegionDisplayName(left).localeCompare(
+        getRegionDisplayName(right),
+        "zh-CN",
+      ),
+    );
+  }, [nodes]);
+
+  useEffect(() => {
+    setSelectedTags((previous) =>
+      (previous || []).filter((tag) => tags.includes(tag)),
+    );
+  }, [setSelectedTags, tags]);
+
+  useEffect(() => {
+    if (selectedRegion !== "all" && !regions.includes(selectedRegion)) {
+      setSelectedRegion("all");
+    }
+  }, [regions, selectedRegion, setSelectedRegion]);
 
   // 判断是否显示分组选择器
   const showGroupSelector = groups.length >= 1;
@@ -110,12 +143,16 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
       result = result.filter((node) => node.group === selectedGroup);
     }
 
-    // 按标签过滤（多选：包含任一选中的标签）
+    if (selectedRegion !== "all") {
+      result = result.filter((node) => node.region === selectedRegion);
+    }
+
+    // 按标签过滤（多选：必须包含全部选中的标签）
     if (selectedTags && selectedTags.length > 0) {
       result = result.filter((node) => {
         if (!node.tags) return false;
         const nodeTags = node.tags.split(";").map((t) => t.trim()).filter((t) => t);
-        return selectedTags.some((st) => nodeTags.includes(st));
+        return selectedTags.every((st) => nodeTags.includes(st));
       });
     }
 
@@ -145,7 +182,7 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
 
       return basicMatch || regionMatch || priceMatch || statusMatch;
     });
-  }, [nodes, searchTerm, onlineSet, selectedGroup, selectedTags]);
+  }, [nodes, searchTerm, onlineSet, selectedGroup, selectedRegion, selectedTags]);
 
   return (
     <div className="km-node-display w-full">
@@ -236,6 +273,31 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
             {groups.map((group) => (
               <SegmentedControl.Item key={group} value={group} className="km-node-group-name">
                 {group}
+              </SegmentedControl.Item>
+            ))}
+          </SegmentedControl.Root>
+        </Flex>
+      )}
+      {regions.length > 0 && (
+        <Flex
+          align="center"
+          gap="2"
+          className="km-node-region-filter mx-4 mb-2 -mt-2 overflow-x-auto"
+        >
+          <label className="whitespace-nowrap text-md text-muted-foreground">
+            {t("common.region", "国家/地区")}
+          </label>
+          <SegmentedControl.Root
+            value={selectedRegion}
+            onValueChange={setSelectedRegion}
+            size="1"
+          >
+            <SegmentedControl.Item value="all">
+              {t("common.all")}
+            </SegmentedControl.Item>
+            {regions.map((region) => (
+              <SegmentedControl.Item key={region} value={region}>
+                {region} {getRegionDisplayName(region)}
               </SegmentedControl.Item>
             ))}
           </SegmentedControl.Root>
