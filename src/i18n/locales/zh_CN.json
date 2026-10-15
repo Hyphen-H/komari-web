@@ -62,6 +62,9 @@
       "uuid": "UUID"
     },
     "nodeEdit": {
+      "autoDiscoveryHost": "自动发现主机名",
+      "autoDiscoveryHostTips": "Agent 重装/更新后会丢失本地标识并重新注册；填写 Agent 的主机名后，重新注册将自动复用本节点，而不会新建重复节点。",
+      "autoDiscoveryHostPlaceholder": "Agent 主机名，例如 Gr",
       "editInfo": "编辑信息",
       "hidden": "隐藏节点",
       "hidden_description": "在未登陆的情况下隐藏该节点",
@@ -338,6 +341,7 @@
     "sort": "排序",
     "status": "状态",
     "success": "成功",
+    "clear": "清除",
     "tags": "标签",
     "tagsDescription": "多个标签用';'分隔",
     "tagsTips": "多个标签使用\";\"隔开。</br> 如需指定颜色，请在标签末尾添加&lt;color&gt;，例如：1Gbps&lt;green&gt;。</br> 可用的颜色列表请参考：<label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color – Radix Themes</a></label>",

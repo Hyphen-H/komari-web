@@ -5,6 +5,7 @@ import {
   IconButton,
   TextField,
   SegmentedControl,
+  Badge,
 } from "@radix-ui/themes";
 import { Search, Grid3X3, Table2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -34,6 +35,10 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
     "nodeSelectedGroup",
     "all",
   );
+  const [selectedTags, setSelectedTags] = useLocalStorage<string[]>(
+    "nodeSelectedTags",
+    [],
+  );
   const searchRef = useRef<HTMLInputElement>(null);
   const onlineSet = useMemo(() => new Set(liveData?.online ?? []), [liveData]);
 
@@ -48,8 +53,34 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
     return Array.from(groupSet).sort();
   }, [nodes]);
 
+  // 获取所有的标签
+  const tags = useMemo(() => {
+    const tagSet = new Set<string>();
+    nodes.forEach((node) => {
+      if (node.tags) {
+        node.tags.split(";").forEach((t) => {
+          const tt = t.trim();
+          if (tt) {
+            tagSet.add(tt);
+          }
+        });
+      }
+    });
+    return Array.from(tagSet).sort();
+  }, [nodes]);
+
   // 判断是否显示分组选择器
   const showGroupSelector = groups.length >= 1;
+  const showTagSelector = tags.length >= 1;
+
+  // 切换标签选中状态（多选）
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      (prev || []).includes(tag)
+        ? (prev || []).filter((t) => t !== tag)
+        : [...(prev || []), tag],
+    );
+  };
 
   // 键盘快捷键支持
   useEffect(() => {
@@ -79,6 +110,15 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
       result = result.filter((node) => node.group === selectedGroup);
     }
 
+    // 按标签过滤（多选：包含任一选中的标签）
+    if (selectedTags && selectedTags.length > 0) {
+      result = result.filter((node) => {
+        if (!node.tags) return false;
+        const nodeTags = node.tags.split(";").map((t) => t.trim()).filter((t) => t);
+        return selectedTags.some((st) => nodeTags.includes(st));
+      });
+    }
+
     // 再按搜索条件过滤
     if (!searchTerm.trim()) return result;
 
@@ -105,7 +145,7 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
 
       return basicMatch || regionMatch || priceMatch || statusMatch;
     });
-  }, [nodes, searchTerm, onlineSet, selectedGroup]);
+  }, [nodes, searchTerm, onlineSet, selectedGroup, selectedTags]);
 
   return (
     <div className="km-node-display w-full">
@@ -199,6 +239,48 @@ const NodeDisplay: React.FC<NodeDisplayProps> = ({ nodes, liveData }) => {
               </SegmentedControl.Item>
             ))}
           </SegmentedControl.Root>
+        </Flex>
+      )}
+      {/* 标签选择器 */}
+      {showTagSelector && (
+        <Flex
+          align="center"
+          gap="2"
+          wrap="wrap"
+          className="km-node-tags mx-4 mb-2 -mt-2"
+        >
+          <label className="whitespace-nowrap text-md text-muted-foreground">
+            {t("common.tags", "标签")}
+          </label>
+          <Flex gap="1" wrap="wrap" align="center">
+            {tags.map((tag) => {
+              const active = selectedTags.includes(tag);
+              return (
+                <Badge
+                  key={tag}
+                  variant={active ? "solid" : "outline"}
+                  color={active ? undefined : "gray"}
+                  className="km-node-tag"
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  onClick={() => toggleTag(tag)}
+                  title={tag}
+                >
+                  {tag}
+                </Badge>
+              );
+            })}
+            {selectedTags.length > 0 && (
+              <Badge
+                variant="soft"
+                color="gray"
+                style={{ cursor: "pointer", userSelect: "none" }}
+                onClick={() => setSelectedTags([])}
+                title={t("common.clear", "清除")}
+              >
+                <X size={12} />
+              </Badge>
+            )}
+          </Flex>
         </Flex>
       )}
       {/* 搜索结果统计 */}

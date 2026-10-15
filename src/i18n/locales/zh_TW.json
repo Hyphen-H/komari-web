@@ -135,6 +135,9 @@
       "uuid": "UUID"
     },
     "nodeEdit": {
+      "autoDiscoveryHost": "自動發現主機名",
+      "autoDiscoveryHostTips": "Agent 重裝/更新後會遺失本機識別並重新註冊；填寫 Agent 的主機名後，重新註冊將自動沿用本節點，而不會新增重複節點。",
+      "autoDiscoveryHostPlaceholder": "Agent 主機名，例如 Gr",
       "editInfo": "編輯資訊",
       "hidden": "隱藏節點",
       "hidden_description": "在未登入的情況下隱藏該節點",
@@ -411,6 +414,7 @@
     "sort": "排序",
     "status": "狀態",
     "success": "成功",
+    "clear": "清除",
     "tags": "標籤",
     "tagsDescription": "多個標籤用';'分隔",
     "tagsTips": "多個標籤使用\";\"隔開。</br> 如需指定顏色，請在標籤末尾新增&lt;color&gt;，例如：1Gbps&lt;green&gt;。</br> 可用的顏色列表請參考：<label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color – Radix Themes</a></label>",

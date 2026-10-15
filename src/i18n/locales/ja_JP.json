@@ -62,6 +62,9 @@
       "uuid": "UUID"
     },
     "nodeEdit": {
+      "autoDiscoveryHost": "自動検出ホスト名",
+      "autoDiscoveryHostTips": "Agent の再インストール/更新後はローカル識別子が失われ、再登録されます。Agent のホスト名を入力しておくと、再登録時にこのノードが自動的に再利用され、重複ノードは作成されません。",
+      "autoDiscoveryHostPlaceholder": "Agent のホスト名（例: Gr）",
       "editInfo": "情報を編集",
       "hidden": "ノードを隠す",
       "hidden_description": "未ログインの状態でこのノードを隠す",
@@ -338,6 +341,7 @@
     "sort": "並び替え",
     "status": "状態",
     "success": "成功",
+    "clear": "クリア",
     "tags": "タグ",
     "tagsDescription": "複数のタグは';'で区切ります",
     "tagsTips": "複数のタグは\";\"で区切ります。</br> 色を指定するには、タグの末尾に&lt;color&gt;を追加してください。例：1Gbps&lt;green&gt;。</br> 使用可能な色のリストは、<label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color – Radix Themes</a></label>を参照してください。",

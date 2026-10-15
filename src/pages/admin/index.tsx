@@ -3,7 +3,7 @@ import {
   quoteShellArg,
   quoteShellArgs,
 } from "@/utils/shellQuote";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   NodeDetailsProvider,
   useNodeDetails,
@@ -20,6 +20,7 @@ import {
   TextArea,
   SegmentedControl,
   Callout,
+  Badge,
 } from "@radix-ui/themes";
 import {
   CircleDollarSign,
@@ -100,11 +101,48 @@ const Layout = () => {
   const { settings, loading: settingsLoading } = useSettings();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // 所有已使用的分组
+  const groups = useMemo(() => {
+    const set = new Set<string>();
+    (Array.isArray(nodeDetail) ? nodeDetail : []).forEach((node) => {
+      if (node.group && node.group.trim()) set.add(node.group);
+    });
+    return Array.from(set).sort();
+  }, [nodeDetail]);
+
+  // 所有已使用的标签（按 ; 分隔）
+  const tags = useMemo(() => {
+    const set = new Set<string>();
+    (Array.isArray(nodeDetail) ? nodeDetail : []).forEach((node) => {
+      if (node.tags) {
+        String(node.tags)
+          .split(";")
+          .forEach((tag: string) => {
+            const trimmed = tag.trim();
+            if (trimmed) set.add(trimmed);
+          });
+      }
+    });
+    return Array.from(set).sort();
+  }, [nodeDetail]);
+
   const filteredNodes = Array.isArray(nodeDetail)
     ? nodeDetail
         .filter((node) =>
           node.name.toLowerCase().includes(searchTerm.toLowerCase())
         )
+        .filter((node) => selectedGroup === "all" || node.group === selectedGroup)
+        .filter((node) => {
+          if (selectedTags.length === 0) return true;
+          const nodeTags = String(node.tags || "")
+            .split(";")
+            .map((tag: string) => tag.trim())
+            .filter(Boolean);
+          return selectedTags.some((tag) => nodeTags.includes(tag));
+        })
         .sort((a, b) => a.weight - b.weight)
     : [];
 
@@ -126,6 +164,12 @@ const Layout = () => {
         selectedNodes={selectedNodes}
         settings={settings}
         settingsLoading={settingsLoading}
+        groups={groups}
+        tags={tags}
+        selectedGroup={selectedGroup}
+        setSelectedGroup={setSelectedGroup}
+        selectedTags={selectedTags}
+        setSelectedTags={setSelectedTags}
       />
 
       {isEmpty ? (
@@ -232,7 +276,7 @@ const AutoDiscoverySection = ({
 
   const [selectedPlatform, setSelectedPlatform] =
     React.useState<Platform>("linux");
-  const [showOptions, setShowOptions] = React.useState(false);
+  const [showOptions, setShowOptions] = React.useState(true);
   const [installOptions, setInstallOptions] =
     React.useState<AutoDiscoveryInstallOptions>({
       disableWebSsh: false,
@@ -1057,12 +1101,24 @@ const Header = ({
   selectedNodes,
   settings,
   settingsLoading,
+  groups,
+  tags,
+  selectedGroup,
+  setSelectedGroup,
+  selectedTags,
+  setSelectedTags,
 }: {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   selectedNodes: string[];
   settings: any;
   settingsLoading: boolean;
+  groups: string[];
+  tags: string[];
+  selectedGroup: string;
+  setSelectedGroup: (group: string) => void;
+  selectedTags: string[];
+  setSelectedTags: React.Dispatch<React.SetStateAction<string[]>>;
 }) => {
   const { t } = useTranslation();
   const { refresh } = useNodeDetails();
@@ -1091,7 +1147,8 @@ const Header = ({
     }
   };
   return (
-    <Flex justify="between" align="center" gap="4" wrap="wrap">
+    <>
+      <Flex justify="between" align="center" gap="4" wrap="wrap">
       <Flex gap="2" align="center">
         <Text size="5" weight="bold">
           {t("admin.nodeTable.nodeList")}
@@ -1135,6 +1192,77 @@ const Header = ({
         </Dialog.Root>
       </Flex>
     </Flex>
+      {/* 分组 / 标签筛选 */}
+      {(groups.length > 0 || tags.length > 0) && (
+        <Flex gap="4" align="center" wrap="wrap">
+          {groups.length > 0 && (
+            <Flex gap="2" align="center" wrap="wrap">
+              <Text size="2" color="gray">
+                {t("common.group")}
+              </Text>
+              <Badge
+                variant={selectedGroup === "all" ? "solid" : "outline"}
+                color={selectedGroup === "all" ? undefined : "gray"}
+                style={{ cursor: "pointer", userSelect: "none" }}
+                onClick={() => setSelectedGroup("all")}
+              >
+                {t("common.all")}
+              </Badge>
+              {groups.map((group) => (
+                <Badge
+                  key={group}
+                  variant={selectedGroup === group ? "solid" : "outline"}
+                  color={selectedGroup === group ? undefined : "gray"}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  onClick={() =>
+                    setSelectedGroup(selectedGroup === group ? "all" : group)
+                  }
+                >
+                  {group}
+                </Badge>
+              ))}
+            </Flex>
+          )}
+          {tags.length > 0 && (
+            <Flex gap="2" align="center" wrap="wrap">
+              <Text size="2" color="gray">
+                {t("common.tags")}
+              </Text>
+              {tags.map((tag) => {
+                const active = selectedTags.includes(tag);
+                return (
+                  <Badge
+                    key={tag}
+                    variant={active ? "solid" : "outline"}
+                    color={active ? undefined : "gray"}
+                    style={{ cursor: "pointer", userSelect: "none" }}
+                    onClick={() =>
+                      setSelectedTags((prev) =>
+                        prev.includes(tag)
+                          ? prev.filter((value) => value !== tag)
+                          : [...prev, tag],
+                      )
+                    }
+                  >
+                    {tag}
+                  </Badge>
+                );
+              })}
+              {selectedTags.length > 0 && (
+                <Badge
+                  variant="soft"
+                  color="gray"
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  onClick={() => setSelectedTags([])}
+                >
+                  {t("common.clear")}
+                </Badge>
+              )}
+            </Flex>
+          )}
+        </Flex>
+      )}
+    </>
   );
 };
 
@@ -2350,10 +2478,8 @@ function GenerateCommandButton({
 function EditButton({ node }: { node: NodeDetail }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const { refresh } = useNodeDetails();
+  const { nodeDetail, refresh } = useNodeDetails();
   const nameRef = React.useRef<HTMLInputElement>(null);
-  const groupRef = React.useRef<HTMLInputElement>(null);
-  const tagsRef = React.useRef<HTMLInputElement>(null);
   const publicRemarkRef = React.useRef<HTMLTextAreaElement>(null);
   const privateRemarkRef = React.useRef<HTMLTextAreaElement>(null);
   const [hidden, setHidden] = useState(false);
@@ -2362,6 +2488,35 @@ function EditButton({ node }: { node: NodeDetail }) {
   const [traffic_limit_type, setTrafficLimitType] = useState("sum");
   const [trafficLimitInput, setTrafficLimitInput] = useState("0 B");
   const [trafficLimitInvalid, setTrafficLimitInvalid] = useState(false);
+  const [groupValue, setGroupValue] = useState<string>(String(node.group || ""));
+  const [tagsValue, setTagsValue] = useState<string>(String(node.tags || ""));
+  const [adHostValue, setAdHostValue] = useState<string>(
+    String(node.auto_discovery_host || "")
+  );
+
+  // 已经使用过的分组 / 标签，作为选择器的候选项
+  const groupOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    (Array.isArray(nodeDetail) ? nodeDetail : []).forEach((item) => {
+      if (item.group && item.group.trim()) set.add(item.group);
+    });
+    return Array.from(set).sort();
+  }, [nodeDetail]);
+
+  const tagOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    (Array.isArray(nodeDetail) ? nodeDetail : []).forEach((item) => {
+      if (item.tags) {
+        String(item.tags)
+          .split(";")
+          .forEach((tag: string) => {
+            const trimmed = tag.trim();
+            if (trimmed) set.add(trimmed);
+          });
+      }
+    });
+    return Array.from(set).sort();
+  }, [nodeDetail]);
 
   React.useEffect(() => {
     setHidden(node.hidden);
@@ -2369,7 +2524,17 @@ function EditButton({ node }: { node: NodeDetail }) {
     setTrafficLimitType(node.traffic_limit_type || "sum");
     setTrafficLimitInput(formatBytes(node.traffic_limit || 0));
     setTrafficLimitInvalid(false);
-  }, [node.hidden, node.traffic_limit, node.traffic_limit_type]);
+    setGroupValue(node.group || "");
+    setTagsValue(node.tags || "");
+    setAdHostValue(node.auto_discovery_host || "");
+  }, [
+    node.hidden,
+    node.traffic_limit,
+    node.traffic_limit_type,
+    node.group,
+    node.tags,
+    node.auto_discovery_host,
+  ]);
 
   const save = async () => {
     if (trafficLimitInvalid) {
@@ -2389,8 +2554,9 @@ function EditButton({ node }: { node: NodeDetail }) {
           name: nameRef.current?.value,
           remark: privateRemarkRef.current?.value,
           public_remark: publicRemarkRef.current?.value,
-          group: groupRef.current?.value,
-          tags: tagsRef.current?.value,
+          group: groupValue,
+          tags: tagsValue,
+          auto_discovery_host: adHostValue.trim(),
           hidden,
           traffic_limit,
           traffic_limit_type,
@@ -2457,13 +2623,55 @@ function EditButton({ node }: { node: NodeDetail }) {
                 />
               </Tips>
             </label>
-            <TextField.Root defaultValue={node.tags} ref={tagsRef} />
+            <SelectOrInput
+              options={tagOptions}
+              value={tagsValue}
+              onChange={(value, option) => {
+                if (option) {
+                  // 选择已有标签：追加到当前值（去重），仍可手动输入新标签
+                  const parts = tagsValue
+                    .split(";")
+                    .map((tag: string) => tag.trim())
+                    .filter(Boolean);
+                  if (!parts.includes(value)) parts.push(value);
+                  setTagsValue(parts.join(";"));
+                } else {
+                  setTagsValue(value);
+                }
+              }}
+              placeholder={t("common.tagsDescription")}
+            />
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
               {t("common.group")}
             </label>
-            <TextField.Root defaultValue={node.group} ref={groupRef} />
+            <SelectOrInput
+              options={groupOptions}
+              value={groupValue}
+              onChange={(value) => setGroupValue(value)}
+              placeholder={t("common.group")}
+            />
+          </div>
+          <div>
+            <label className="mb-1 text-sm font-medium text-muted-foreground flex items-center">
+              {t("admin.nodeEdit.autoDiscoveryHost", "自动发现主机名")}
+              <Tips>
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: t("admin.nodeEdit.autoDiscoveryHostTips"),
+                  }}
+                />
+              </Tips>
+            </label>
+            <TextField.Root
+              value={adHostValue}
+              onChange={(e) => setAdHostValue(e.target.value)}
+              placeholder={t(
+                "admin.nodeEdit.autoDiscoveryHostPlaceholder",
+                "Agent 的主机名，例如 Gr",
+              )}
+            />
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">

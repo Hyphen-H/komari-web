@@ -62,6 +62,8 @@
       "uuid": "UUID"
     },
     "nodeEdit": {
+      "autoDiscoveryHost": "Nama host auto-discovery",
+      "autoDiscoveryHostTips": "Setelah Agent dipasang ulang/diperbarui, identitas lokalnya hilang dan Agent mendaftar ulang. Isi nama host Agent agar pendaftaran ulang memakai kembali node ini alih-alih membuat node duplikat.",
       "editInfo": "Ubah Informasi",
       "hidden": "Sembunyikan Node",
       "hidden_description": "Sembunyikan node ini jika belum masuk",
@@ -338,6 +340,7 @@
     "sort": "Urutkan",
     "status": "Status",
     "success": "Berhasil",
+    "clear": "Hapus",
     "tags": "Tag",
     "tagsDescription": "Beberapa tag dipisahkan dengan ';'",
     "tagsTips": "Beberapa tag dipisahkan dengan “;”. </br> Untuk menentukan warna, tambahkan &lt;color&gt; di akhir label, misal 1Gbps&lt;green&gt;.</br> Daftar warna tersedia di <label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color - Radix Themes</a></label>",

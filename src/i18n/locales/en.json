@@ -135,6 +135,9 @@
       "uuid": "UUID"
     },
     "nodeEdit": {
+      "autoDiscoveryHost": "Auto-discovery hostname",
+      "autoDiscoveryHostPlaceholder": "Agent hostname, e.g. Gr",
+      "autoDiscoveryHostTips": "The agent's hostname. After the agent is reinstalled or updated, its local identity is lost and it registers again; with this filled in, re-registration will reuse this node instead of creating a duplicate.",
       "editInfo": "Edit information",
       "hidden": "Hide Node",
       "hidden_description": "Hide this node when not logged in",
@@ -566,6 +569,7 @@
     "sort": "Sort",
     "status": "Status",
     "success": "Success",
+    "clear": "Clear",
     "tags": "Tags",
     "tagsDescription": "Multiple tags separated by ';'",
     "tagsTips": "Multiple tags are separated by “;”. </br>  To specify a color, add &lt;color&gt; to the end of the label, e.g. 1Gbps&lt;green&gt;.</br>  A list of available colors can be found at <label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color - Radix Themes</a></label>",
