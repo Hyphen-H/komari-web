@@ -337,7 +337,7 @@
     "selected_total": "已选 {{count}} / 共 {{total}}",
     "semi_annual": "半年",
     "server": "服务器",
-    "serverList": "服务器列表",
+    "serverList": "节点列表",
     "sort": "排序",
     "status": "状态",
     "success": "成功",

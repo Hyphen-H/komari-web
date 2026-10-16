@@ -410,7 +410,7 @@
     "selected_total": "已選 {{count}} / 共 {{total}}",
     "semi_annual": "半年",
     "server": "伺服器",
-    "serverList": "伺服器列表",
+    "serverList": "節點列表",
     "sort": "排序",
     "status": "狀態",
     "success": "成功",

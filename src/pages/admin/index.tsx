@@ -21,9 +21,11 @@ import {
   SegmentedControl,
   Callout,
   Badge,
+  Select,
 } from "@radix-ui/themes";
 import {
   CircleDollarSign,
+  Check,
   Copy,
   CornerRightUp,
   Download,
@@ -88,10 +90,14 @@ import { useSettings } from "@/lib/api";
 import { SelectOrInput } from "@/components/ui/select-or-input";
 import { useRPC2Call } from "@/contexts/RPC2Context";
 import {
-  getRegionDisplayName,
-  getSupportedRegions,
+  getRegionCode,
   isRegionCodeTag,
 } from "@/utils/regionHelper";
+import ClassificationManager from "@/components/admin/ClassificationManager";
+import ClassificationPicker from "@/components/admin/ClassificationPicker";
+import TagEditor, { parseEditableTag } from "@/components/admin/TagEditor";
+
+type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc";
 
 
 const NodeDetailsPage = () => {
@@ -109,6 +115,7 @@ const Layout = () => {
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<NodeSort>("weight");
 
   // 所有已使用的分组
   const groups = useMemo(() => {
@@ -136,7 +143,7 @@ const Layout = () => {
   }, [nodeDetail]);
 
   const filteredNodes = Array.isArray(nodeDetail)
-    ? nodeDetail
+    ? [...nodeDetail]
         .filter((node) =>
           node.name.toLowerCase().includes(searchTerm.toLowerCase())
         )
@@ -149,7 +156,27 @@ const Layout = () => {
             .filter(Boolean);
           return selectedTags.some((tag) => nodeTags.includes(tag));
         })
-        .sort((a, b) => a.weight - b.weight)
+        .sort((a, b) => {
+          if (sortBy === "created-desc" || sortBy === "created-asc") {
+            const left = Date.parse(a.created_at);
+            const right = Date.parse(b.created_at);
+            if (!Number.isFinite(left) && !Number.isFinite(right)) return a.uuid.localeCompare(b.uuid);
+            if (!Number.isFinite(left)) return 1;
+            if (!Number.isFinite(right)) return -1;
+            const difference = left - right;
+            return sortBy === "created-asc" ? difference : -difference;
+          }
+          if (sortBy === "region-asc" || sortBy === "region-desc") {
+            const left = getRegionCode(a.region || "");
+            const right = getRegionCode(b.region || "");
+            if (!left && !right) return 0;
+            if (!left) return 1;
+            if (!right) return -1;
+            const difference = left.localeCompare(right, "en");
+            return (sortBy === "region-asc" ? difference : -difference) || a.weight - b.weight || a.uuid.localeCompare(b.uuid);
+          }
+          return a.weight - b.weight;
+        })
     : [];
 
   useEffect(() => {
@@ -176,6 +203,8 @@ const Layout = () => {
         setSelectedGroup={setSelectedGroup}
         selectedTags={selectedTags}
         setSelectedTags={setSelectedTags}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
       />
 
       {isEmpty ? (
@@ -186,6 +215,7 @@ const Layout = () => {
           selectedNodes={selectedNodes}
           setSelectedNodes={setSelectedNodes}
           settings={settings}
+          sortable={sortBy === "weight"}
         />
       )}
     </Flex>
@@ -1101,6 +1131,8 @@ const Header = ({
   setSelectedGroup,
   selectedTags,
   setSelectedTags,
+  sortBy,
+  setSortBy,
 }: {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
@@ -1113,22 +1145,37 @@ const Header = ({
   setSelectedGroup: (group: string) => void;
   selectedTags: string[];
   setSelectedTags: React.Dispatch<React.SetStateAction<string[]>>;
+  sortBy: NodeSort;
+  setSortBy: (sort: NodeSort) => void;
 }) => {
   const { t } = useTranslation();
-  const { refresh } = useNodeDetails();
+  const { nodeDetail, refresh } = useNodeDetails();
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [newGroup, setNewGroup] = useState("");
+  const [newTags, setNewTags] = useState("");
+  const [newRegion, setNewRegion] = useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const handleAddNode = async (name: string | undefined) => {
     setDialogOpen(true);
     setLoading(true);
     try {
-      await fetch("/api/admin/client/add", {
+      const response = await fetch("/api/admin/client/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name || "" }),
+        body: JSON.stringify({
+          name: name || "",
+          group: newGroup.trim(),
+          tags: normalizeEditableTags(newTags).join(";"),
+          region: newRegion.trim(),
+        }),
       });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       refresh();
+      setNewGroup("");
+      setNewTags("");
+      setNewRegion("");
+      setDialogOpen(false);
     } catch (error) {
       toast.error(
         `${t("common.error", "Error")}: ${
@@ -1137,7 +1184,6 @@ const Header = ({
       );
     } finally {
       setLoading(false);
-      setDialogOpen(false);
     }
   };
   return (
@@ -1151,7 +1197,18 @@ const Header = ({
           <Text size="2">({selectedNodes.length} selected)</Text>
         )}
       </Flex>
-      <Flex gap="2">
+      <Flex gap="2" wrap="wrap">
+        <ClassificationManager nodes={nodeDetail || []} onSaved={refresh} />
+        <Select.Root value={sortBy} onValueChange={(value) => setSortBy(value as NodeSort)}>
+          <Select.Trigger aria-label="排序方式" />
+          <Select.Content>
+            <Select.Item value="weight">手动排序</Select.Item>
+            <Select.Item value="created-desc">添加时间：新到旧</Select.Item>
+            <Select.Item value="created-asc">添加时间：旧到新</Select.Item>
+            <Select.Item value="region-asc">国家代码：A → Z</Select.Item>
+            <Select.Item value="region-desc">国家代码：Z → A</Select.Item>
+          </Select.Content>
+        </Select.Root>
         <TextField.Root
           placeholder={t("admin.nodeTable.searchByName")}
           value={searchTerm}
@@ -1170,6 +1227,20 @@ const Header = ({
               ref={inputRef}
               placeholder={t("admin.nodeTable.nameOptional")}
             />
+            <Flex direction="column" gap="3" mt="3">
+              <div>
+                <Text as="label" size="2" weight="medium">分组</Text>
+                <ClassificationPicker options={groups} value={newGroup} onChange={setNewGroup} />
+              </div>
+              <div>
+                <Text as="label" size="2" weight="medium">国家/地区</Text>
+                <ClassificationPicker country value={newRegion} onChange={setNewRegion} />
+              </div>
+              <div>
+                <Text as="label" size="2" weight="medium">标签</Text>
+                <TagChipInput value={newTags} options={tags} onChange={setNewTags} placeholder="输入后按回车添加" />
+              </div>
+            </Flex>
             <Flex justify="end" gap="2" mt="4">
               <Button
                 onClick={() => handleAddNode(inputRef.current?.value)}
@@ -1266,15 +1337,17 @@ const SortableRow = ({
   handleSelectNode,
   settings,
   isSnapshotBackend,
+  sortable,
 }: {
   node: NodeDetail;
   selectedNodes: string[];
   handleSelectNode: (uuid: string, checked: boolean) => void;
   settings: any;
   isSnapshotBackend: boolean;
+  sortable: boolean;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: node.uuid });
+    useSortable({ id: node.uuid, disabled: !sortable });
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const style = {
@@ -1305,7 +1378,7 @@ const SortableRow = ({
               : undefined
           }
         >
-          <MenuIcon size={isMobile ? 18 : 16} color={"var(--gray-8)"} />
+          {sortable && <MenuIcon size={isMobile ? 18 : 16} color={"var(--gray-8)"} />}
         </div>
       </TableCell>
       <TableCell>
@@ -1351,6 +1424,17 @@ const SortableRow = ({
         </Flex>
       </TableCell>
       <TableCell>{node.version}</TableCell>
+      <TableCell>
+        <Flex align="center" gap="1">
+          {node.region ? <Flag flag={node.region} /> : null}
+          <Text size="2">{getRegionCode(node.region || "") || "-"}</Text>
+        </Flex>
+      </TableCell>
+      <TableCell>
+        <Text size="2" title={node.created_at}>
+          {node.created_at ? new Date(node.created_at).toLocaleString() : "-"}
+        </Text>
+      </TableCell>
       <TableCell>
         <Text
           size="2"
@@ -1408,11 +1492,13 @@ const NodeTable = ({
   selectedNodes,
   setSelectedNodes,
   settings,
+  sortable,
 }: {
   nodes: NodeDetail[];
   selectedNodes: string[];
   setSelectedNodes: (nodes: string[]) => void;
   settings: any;
+  sortable: boolean;
 }) => {
   const { t } = useTranslation();
   const sensors = useSensors(
@@ -1502,12 +1588,12 @@ const NodeTable = ({
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
+        onDragEnd={sortable ? handleDragEnd : undefined}
       >
         <Table>
           <TableHeader style={{ backgroundColor: "var(--accent-4)" }}>
             <TableRow>
-              <TableHead></TableHead>
+              <TableHead>{sortable ? "排序" : ""}</TableHead>
               <TableHead>
                 <Checkbox
                   checked={
@@ -1520,6 +1606,8 @@ const NodeTable = ({
               <TableHead>{t("admin.nodeTable.name")}</TableHead>
               <TableHead>{t("admin.nodeDetail.ipAddress")}</TableHead>
               <TableHead>{t("admin.nodeDetail.clientVersion")}</TableHead>
+              <TableHead>国家</TableHead>
+              <TableHead>添加时间</TableHead>
               <TableHead>{t("common.group")}</TableHead>
               <TableHead>{t("admin.nodeEdit.remark")}</TableHead>
               <TableHead>{t("admin.nodeTable.billing")}</TableHead>
@@ -1532,13 +1620,14 @@ const NodeTable = ({
               strategy={verticalListSortingStrategy}
             >
               {localNodes.map((node) => (
-                <SortableRow
+                  <SortableRow
                   key={node.uuid}
                   node={node}
                   selectedNodes={selectedNodes}
-                  handleSelectNode={handleSelectNode}
-                  settings={settings}
-                  isSnapshotBackend={isSnapshotBackend}
+                    handleSelectNode={handleSelectNode}
+                    settings={settings}
+                    isSnapshotBackend={isSnapshotBackend}
+                    sortable={sortable}
                 />
               ))}
             </SortableContext>
@@ -2480,6 +2569,8 @@ function TagChipInput({
   placeholder?: string;
 }) {
   const [draft, setDraft] = React.useState("");
+  const [editingTag, setEditingTag] = React.useState("");
+  const [renameDraft, setRenameDraft] = React.useState("");
   const tags = React.useMemo(() => normalizeEditableTags(value), [value]);
 
   const commit = React.useCallback(
@@ -2493,12 +2584,34 @@ function TagChipInput({
     onChange(tags.filter((item) => item !== tag).join(";"));
   };
 
+  const rename = (tag: string) => {
+    const replacement = renameDraft.trim();
+    if (!replacement) return;
+    onChange(tags.map((item) => item === tag ? replacement : item).filter((item, index, list) => list.indexOf(item) === index).join(";"));
+    setEditingTag("");
+    setRenameDraft("");
+  };
+
   return (
     <div className="rounded-md border border-gray-6 bg-gray-1 p-2">
       <Flex gap="2" wrap="wrap" align="center">
-        {tags.map((tag) => (
-          <Badge key={tag} variant="soft" size="2" className="gap-1">
-            {tag}
+        {tags.map((tag) => editingTag === tag ? (
+          <Flex key={tag} align="center" gap="1">
+            <div onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); rename(tag); } }}><TagEditor value={renameDraft} onChange={setRenameDraft} label="修改标签名称" /></div>
+            <IconButton size="1" onClick={() => rename(tag)} aria-label="保存标签修改"><Check size={12} /></IconButton>
+            <IconButton size="1" variant="soft" color="gray" onClick={() => { setEditingTag(""); setRenameDraft(""); }} aria-label="取消修改标签"><X size={12} /></IconButton>
+          </Flex>
+        ) : (
+          <Badge key={tag} color={parseEditableTag(tag).color} variant="soft" size="2" className="gap-1">
+            <button
+              type="button"
+              className="inline-flex cursor-pointer items-center rounded-sm opacity-60 hover:opacity-100"
+              onClick={() => { setEditingTag(tag); setRenameDraft(tag); }}
+              aria-label={`修改标签 ${tag}`}
+            >
+              <Pencil size={11} />
+            </button>
+            {parseEditableTag(tag).text}
             <button
               type="button"
               className="inline-flex cursor-pointer items-center rounded-sm opacity-60 hover:opacity-100"
@@ -2524,6 +2637,7 @@ function TagChipInput({
             setDraft(parts.at(-1) ?? "");
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
             if (event.key !== "Enter" && event.key !== ";") return;
             event.preventDefault();
             commit([draft]);
@@ -2574,6 +2688,7 @@ function EditButton({ node }: { node: NodeDetail }) {
   const [groupValue, setGroupValue] = useState<string>(String(node.group || ""));
   const [tagsValue, setTagsValue] = useState<string>(String(node.tags || ""));
   const [regionValue, setRegionValue] = useState<string>(String(node.region || ""));
+  const [regionAuto, setRegionAuto] = useState(!node.region_manual);
   const [adHostValue, setAdHostValue] = useState<string>(
     String(node.auto_discovery_host || "")
   );
@@ -2603,6 +2718,7 @@ function EditButton({ node }: { node: NodeDetail }) {
   }, [nodeDetail]);
 
   React.useEffect(() => {
+    if (open) return;
     setHidden(node.hidden);
     setTrafficLimit(node.traffic_limit || 0);
     setTrafficLimitType(node.traffic_limit_type || "sum");
@@ -2611,14 +2727,17 @@ function EditButton({ node }: { node: NodeDetail }) {
     setGroupValue(node.group || "");
     setTagsValue(node.tags || "");
     setRegionValue(node.region || "");
+    setRegionAuto(!node.region_manual);
     setAdHostValue(node.auto_discovery_host || "");
   }, [
+    open,
     node.hidden,
     node.traffic_limit,
     node.traffic_limit_type,
     node.group,
     node.tags,
     node.region,
+    node.region_manual,
     node.auto_discovery_host,
   ]);
 
@@ -2642,7 +2761,8 @@ function EditButton({ node }: { node: NodeDetail }) {
           public_remark: publicRemarkRef.current?.value,
           group: groupValue,
           tags: normalizeEditableTags(tagsValue).join(";"),
-          region: regionValue.trim(),
+          ...(!regionAuto ? { region: regionValue.trim() } : {}),
+          ...(regionAuto !== !node.region_manual ? { region_auto: regionAuto } : {}),
           auto_discovery_host: adHostValue.trim(),
           hidden,
           traffic_limit,
@@ -2721,26 +2841,17 @@ function EditButton({ node }: { node: NodeDetail }) {
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
               {t("common.region", "国家/地区")}
             </label>
-            <SelectOrInput
-              options={getSupportedRegions().map((region) => ({
-                value: region,
-                label: `${region} ${getRegionDisplayName(region)}`,
-              }))}
-              value={regionValue}
-              onChange={setRegionValue}
-              placeholder={t("common.region", "国家/地区")}
-            />
+            <ClassificationPicker country value={regionValue} onChange={(value) => { setRegionValue(value); setRegionAuto(false); }} />
+            <Flex align="center" gap="2" mt="2">
+              <Checkbox id={`region-auto-${node.uuid}`} checked={regionAuto} onCheckedChange={(checked) => setRegionAuto(Boolean(checked))} />
+              <label htmlFor={`region-auto-${node.uuid}`} className="text-sm">自动识别（下次 Agent 上报更新）；取消后保留手动设置</label>
+            </Flex>
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
               {t("common.group")}
             </label>
-            <SelectOrInput
-              options={groupOptions}
-              value={groupValue}
-              onChange={(value) => setGroupValue(value)}
-              placeholder={t("common.group")}
-            />
+            <ClassificationPicker options={groupOptions} value={groupValue} onChange={setGroupValue} />
           </div>
           <div>
             <label className="mb-1 text-sm font-medium text-muted-foreground flex items-center">

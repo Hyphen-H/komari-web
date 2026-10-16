@@ -6,7 +6,7 @@
       "icon": "LayoutDashboard"
     },
     {
-      "labelKey": "common.serverList",
+      "labelKey": "admin.nodeTable.nodeList",
       "path": "/admin/servers",
       "icon": "Server"
     },
