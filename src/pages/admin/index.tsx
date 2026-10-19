@@ -2972,7 +2972,7 @@ function EditButton({ node }: { node: NodeDetail }) {
               <Tabs.List aria-label="流量与 Agent 设置" className="mt-2">
                 <Tabs.Trigger value="threshold">流量阈值</Tabs.Trigger>
                 <Tabs.Trigger value="reset">重置日同步</Tabs.Trigger>
-                <Tabs.Trigger value="upgrade">Agent 升级</Tabs.Trigger>
+                <Tabs.Trigger value="upgrade">更换 Agent</Tabs.Trigger>
               </Tabs.List>
               <Tabs.Content value="threshold" className="pt-3">
             <Text as="div" size="2" mb="2">{t("admin.nodeEdit.trafficLimitType")}</Text>
@@ -3017,7 +3017,7 @@ function EditButton({ node }: { node: NodeDetail }) {
             </SettingCardShortTextInput>
               </Tabs.Content>
               <Tabs.Content value="reset" className="pt-3">{open && <AgentTrafficSettings uuid={node.uuid} />}</Tabs.Content>
-              <Tabs.Content value="upgrade" className="pt-3">{open && <AgentUpgradeSettings uuid={node.uuid} version={node.version} onUpdated={refresh} />}</Tabs.Content>
+              <Tabs.Content value="upgrade" className="pt-3">{open && <AgentUpgradeSettings uuid={node.uuid} version={node.version} />}</Tabs.Content>
             </Tabs.Root>
           </section>
         </div>
