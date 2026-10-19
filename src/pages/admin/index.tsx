@@ -162,7 +162,7 @@ const Layout = () => {
             .split(";")
             .map((tag: string) => tag.trim())
             .filter(Boolean);
-          return selectedTags.some((tag) => nodeTags.includes(tag));
+          return selectedTags.every((tag) => nodeTags.includes(tag));
         })
         .sort((a, b) => {
           if (sortBy === "created-desc" || sortBy === "created-asc") {
