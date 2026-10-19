@@ -105,6 +105,16 @@ import {
 } from "@/utils/dateInput";
 
 type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc";
+
+const compareCreatedAt = (a: NodeDetail, b: NodeDetail, newestFirst: boolean) => {
+  const left = Date.parse(a.created_at);
+  const right = Date.parse(b.created_at);
+  if (!Number.isFinite(left) && !Number.isFinite(right)) return a.uuid.localeCompare(b.uuid);
+  if (!Number.isFinite(left)) return 1;
+  if (!Number.isFinite(right)) return -1;
+  const difference = left - right;
+  return newestFirst ? -difference : difference;
+};
 type DeploymentNode = Pick<NodeDetail, "uuid" | "token" | "name">;
 
 
@@ -166,22 +176,19 @@ const Layout = () => {
         })
         .sort((a, b) => {
           if (sortBy === "created-desc" || sortBy === "created-asc") {
-            const left = Date.parse(a.created_at);
-            const right = Date.parse(b.created_at);
-            if (!Number.isFinite(left) && !Number.isFinite(right)) return a.uuid.localeCompare(b.uuid);
-            if (!Number.isFinite(left)) return 1;
-            if (!Number.isFinite(right)) return -1;
-            const difference = left - right;
-            return sortBy === "created-asc" ? difference : -difference;
+            return compareCreatedAt(a, b, sortBy === "created-desc");
           }
           if (sortBy === "region-asc" || sortBy === "region-desc") {
             const left = getRegionCode(a.region || "");
             const right = getRegionCode(b.region || "");
-            if (!left && !right) return 0;
-            if (!left) return 1;
-            if (!right) return -1;
-            const difference = left.localeCompare(right, "en");
-            return (sortBy === "region-asc" ? difference : -difference) || a.weight - b.weight || a.uuid.localeCompare(b.uuid);
+            if (!left && right) return 1;
+            if (left && !right) return -1;
+            const difference = left && right ? left.localeCompare(right, "en") : 0;
+            if (difference !== 0) {
+              return sortBy === "region-asc" ? difference : -difference;
+            }
+            // 同一国家/地区内按添加时间从新到旧排列，让新节点优先出现
+            return compareCreatedAt(a, b, true);
           }
           return a.weight - b.weight;
         })

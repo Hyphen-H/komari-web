@@ -10,6 +10,7 @@
     "test:onboarding": "node --test script/onboarding.test.mjs",
     "test:node-onboarding": "node script/node-onboarding.test.mjs",
     "test:tag-filter": "node script/tag-filter.test.mjs",
+    "test:node-sort": "node script/node-sort.test.mjs",
     "preview": "vite preview",
     "i18n:sync": "node ./script/i18n-sync.mjs",
     "i18n:sync:dry": "node ./script/i18n-sync.mjs --dry-run"
