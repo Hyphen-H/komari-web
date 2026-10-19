@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Flex, Select, Text, TextField } from "@radix-ui/themes";
+import { Button, Flex, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { toast } from "sonner";
 
 type Config = {
@@ -68,13 +68,10 @@ export default function AgentTrafficSettings({ uuid }: { uuid: string }) {
       {config?.revision && <Text size="2">主控已保存目标：{config.managed ? describeDay(config.day) : "恢复被控本地配置"}</Text>}
       {config?.seen_at && <Text size="2">Agent 实际值：{describeDay(config.effective_day)} · {config.effective_managed ? "主控管理" : "本地配置"}（{new Date(config.seen_at).toLocaleString()}）</Text>}
       <Flex gap="2" align="center" wrap="wrap">
-        <Select.Root value={mode} onValueChange={(value) => { setMode(value); setDirty(true); }} disabled={!config || saving}>
-          <Select.Trigger aria-label="流量重置配置来源" />
-          <Select.Content>
-            <Select.Item value="local">沿用 / 恢复被控本地配置</Select.Item>
-            <Select.Item value="managed">由主控管理</Select.Item>
-          </Select.Content>
-        </Select.Root>
+        <SegmentedControl.Root aria-label="流量重置配置来源" value={mode} onValueChange={(value) => { setMode(value); setDirty(true); }} disabled={!config || saving}>
+          <SegmentedControl.Item value="local">本地配置</SegmentedControl.Item>
+          <SegmentedControl.Item value="managed">主控管理</SegmentedControl.Item>
+        </SegmentedControl.Root>
         {mode === "managed" && <TextField.Root aria-label="每月流量重置日" type="number" min="0" max="31" step="1" value={day} onChange={(event) => { setDay(event.target.value); setDirty(true); }} style={{ width: 100 }} />}
         <Button type="button" disabled={!config || saving} onClick={save}>{saving ? "保存中…" : "保存并同步重置日"}</Button>
       </Flex>

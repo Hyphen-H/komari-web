@@ -22,6 +22,7 @@ import {
   Callout,
   Badge,
   Select,
+  Tabs,
 } from "@radix-ui/themes";
 import {
   CircleDollarSign,
@@ -81,8 +82,6 @@ import PriceTags from "@/components/PriceTags";
 import Loading from "@/components/loading";
 import Tips from "@/components/ui/tips";
 import {
-  SettingCardCollapse,
-  SettingCardSelect,
   SettingCardShortTextInput,
   SettingCardSwitch,
 } from "@/components/admin/SettingCard";
@@ -97,8 +96,10 @@ import ClassificationManager from "@/components/admin/ClassificationManager";
 import ClassificationPicker from "@/components/admin/ClassificationPicker";
 import TagEditor, { parseEditableTag } from "@/components/admin/TagEditor";
 import AgentTrafficSettings from "@/components/admin/AgentTrafficSettings";
+import AgentUpgradeSettings from "@/components/admin/AgentUpgradeSettings";
 
 type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc";
+type DeploymentNode = Pick<NodeDetail, "uuid" | "token" | "name">;
 
 
 const NodeDetailsPage = () => {
@@ -1153,25 +1154,36 @@ const Header = ({
   const { nodeDetail, refresh } = useNodeDetails();
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [autoDiscoveryOpen, setAutoDiscoveryOpen] = useState(false);
+  const [createdNode, setCreatedNode] = useState<DeploymentNode | null>(null);
+  const creatingRef = React.useRef(false);
+  const isSnapshotBackend = useIsSnapshotBackend();
   const [newGroup, setNewGroup] = useState("");
   const [newTags, setNewTags] = useState("");
   const [newRegion, setNewRegion] = useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const handleAddNode = async (name: string | undefined) => {
-    setDialogOpen(true);
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     setLoading(true);
     try {
       const response = await fetch("/api/admin/client/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name || "",
+          name: name?.trim() || "",
           group: newGroup.trim(),
           tags: normalizeEditableTags(newTags).join(";"),
           region: newRegion.trim(),
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      const identity = result.data ?? result;
+      if (typeof identity.uuid !== "string" || !identity.uuid || typeof identity.token !== "string" || !identity.token) {
+        throw new Error("节点创建响应缺少身份信息，请刷新列表检查，勿重复创建");
+      }
+      setCreatedNode({ uuid: identity.uuid, token: identity.token, name: name?.trim() || `client_${identity.uuid.slice(0, 8)}` });
       refresh();
       setNewGroup("");
       setNewTags("");
@@ -1184,6 +1196,7 @@ const Header = ({
         }`
       );
     } finally {
+      creatingRef.current = false;
       setLoading(false);
     }
   };
@@ -1200,6 +1213,15 @@ const Header = ({
       </Flex>
       <Flex gap="2" wrap="wrap">
         <ClassificationManager nodes={nodeDetail || []} onSaved={refresh} />
+        <Dialog.Root open={autoDiscoveryOpen} onOpenChange={setAutoDiscoveryOpen}>
+          <Dialog.Trigger><Button variant="soft"><Radar size={16} />自动发现</Button></Dialog.Trigger>
+          <Dialog.Content>
+            <Dialog.Title>自动发现批量接入</Dialog.Title>
+            <Dialog.Description>此方式不预建命名节点。运行命令后按目标机主机名自动注册为 Auto-主机名，再到节点列表修改名称。不要同时用“添加节点”创建同一台机器。</Dialog.Description>
+            <AutoDiscoverySection settings={settings} loading={settingsLoading} />
+            <Flex justify="end" mt="4"><Dialog.Close><Button variant="soft" color="gray">关闭</Button></Dialog.Close></Flex>
+          </Dialog.Content>
+        </Dialog.Root>
         <Select.Root value={sortBy} onValueChange={(value) => setSortBy(value as NodeSort)}>
           <Select.Trigger aria-label="排序方式" />
           <Select.Content>
@@ -1215,7 +1237,7 @@ const Header = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog.Root open={dialogOpen} onOpenChange={(next) => { if (!loading) setDialogOpen(next); }}>
           <Dialog.Trigger>
             <Button data-guide="add-node" onClick={() => setDialogOpen(true)}>
               <Plus size={16} />
@@ -1224,6 +1246,7 @@ const Header = ({
           </Dialog.Trigger>
           <Dialog.Content>
             <Dialog.Title>{t("admin.nodeTable.addNode")}</Dialog.Title>
+            <Dialog.Description mb="3">先填写节点信息，创建后生成专属部署命令；运行该命令只接入这个节点，不会另建 Auto 节点。下一步可设置流量重置日等安装选项。</Dialog.Description>
             <TextField.Root
               ref={inputRef}
               placeholder={t("admin.nodeTable.nameOptional")}
@@ -1247,17 +1270,23 @@ const Header = ({
                 onClick={() => handleAddNode(inputRef.current?.value)}
                 disabled={loading}
               >
-                {t("admin.nodeTable.addNode")}
+                {loading ? "创建中…" : "创建节点并生成部署命令"}
               </Button>
+              <Button variant="soft" color="gray" disabled={loading} onClick={() => setDialogOpen(false)}>取消</Button>
             </Flex>
-            <AutoDiscoverySection
-              settings={settings}
-              loading={settingsLoading}
-            />
           </Dialog.Content>
         </Dialog.Root>
       </Flex>
     </Flex>
+      {createdNode && <GenerateCommandButton
+        key={createdNode.uuid}
+        node={createdNode}
+        settings={settings}
+        isSnapshotBackend={isSnapshotBackend}
+        open={true}
+        onOpenChange={(next) => { if (!next) setCreatedNode(null); }}
+        newlyCreated
+      />}
       {/* 分组 / 标签筛选 */}
       {(groups.length > 0 || tags.length > 0) && (
         <Flex gap="4" align="center" wrap="wrap">
@@ -1741,14 +1770,22 @@ function GenerateCommandButton({
   node,
   settings,
   isSnapshotBackend,
+  open,
+  onOpenChange,
+  newlyCreated = false,
 }: {
-  node: NodeDetail;
+  node: DeploymentNode;
   settings: any;
   isSnapshotBackend: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  newlyCreated?: boolean;
 }) {
   const [selectedPlatform, setSelectedPlatform] =
     React.useState<Platform>("linux");
-  const [commandOpen, setCommandOpen] = React.useState(false);
+  const [localOpen, setLocalOpen] = React.useState(false);
+  const commandOpen = open ?? localOpen;
+  const setCommandOpen = (next: boolean) => { setLocalOpen(next); onOpenChange?.(next); };
   const [managedResetDay, setManagedResetDay] = React.useState<number | null>(null);
   React.useEffect(() => {
     if (!commandOpen) return;
@@ -1953,15 +1990,16 @@ function GenerateCommandButton({
   const { t } = useTranslation();
   return (
     <Dialog.Root open={commandOpen} onOpenChange={setCommandOpen}>
-      <Dialog.Trigger>
+      {!newlyCreated && <Dialog.Trigger>
         <IconButton variant="ghost" title={t("admin.nodeTable.installCommand")}>
           <Download size="18" />
         </IconButton>
-      </Dialog.Trigger>
+      </Dialog.Trigger>}
       <Dialog.Content>
         <Dialog.Title>
-          {t("admin.nodeTable.installCommand", "一键部署指令")}
+          {newlyCreated ? `部署节点：${node.name}` : t("admin.nodeTable.installCommand", "一键部署指令")}
         </Dialog.Title>
+        <Dialog.Description mb="3">{newlyCreated ? `节点“${node.name}”已创建，无需再次添加。` : `此命令绑定节点“${node.name}”。`} 设置下方安装选项后，在目标机运行命令即可接入此节点。命令含节点专属 Token，请勿公开或在多台机器复用。关闭后可从该节点的部署按钮重新打开。</Dialog.Description>
         {managedResetDay !== null && <Callout.Root color="blue" mb="3"><Callout.Text>此节点由主控管理流量重置日，部署指令已使用主控设定值 {managedResetDay}（0 表示禁用）。远程同步仍需安装支持该功能的定制 Agent；普通官方版本仅使用启动参数。</Callout.Text></Callout.Root>}
         <div className="flex flex-col gap-4">
           <SegmentedControl.Root
@@ -2558,6 +2596,7 @@ function GenerateCommandButton({
               {t("common.copy")}
             </Button>
           </Flex>
+          <Flex justify="end"><Dialog.Close><Button variant="soft" color="gray">{newlyCreated ? "完成，返回节点列表" : "关闭"}</Button></Dialog.Close></Flex>
         </div>
       </Dialog.Content>
     </Dialog.Root>
@@ -2927,38 +2966,21 @@ function EditButton({ node }: { node: NodeDetail }) {
               onChange={setHidden}
             />
           </div>
-          <SettingCardCollapse title={t("admin.nodeEdit.trafficLimit")}>
-            {open && <AgentTrafficSettings uuid={node.uuid} />}
-            <SettingCardSelect
-              bordless
-              title={t("admin.nodeEdit.trafficLimitType")}
-              defaultValue={node.traffic_limit_type || "max"}
-              options={[
-                {
-                  label: t("admin.nodeEdit.trafficLimitType_sum"),
-                  value: "sum",
-                },
-                {
-                  label: t("admin.nodeEdit.trafficLimitType_max"),
-                  value: "max",
-                },
-                {
-                  label: t("admin.nodeEdit.trafficLimitType_min"),
-                  value: "min",
-                },
-                {
-                  label: t("admin.nodeEdit.trafficLimitType_up"),
-                  value: "up",
-                },
-                {
-                  label: t("admin.nodeEdit.trafficLimitType_down"),
-                  value: "down",
-                },
-              ]}
-              OnSave={(value) => {
-                setTrafficLimitType(value);
-              }}
-            />
+          <section className="rounded-md border border-gray-6 p-3">
+            <Text weight="bold" size="3">流量与 Agent</Text>
+            <Tabs.Root defaultValue="threshold">
+              <Tabs.List aria-label="流量与 Agent 设置" className="mt-2">
+                <Tabs.Trigger value="threshold">流量阈值</Tabs.Trigger>
+                <Tabs.Trigger value="reset">重置日同步</Tabs.Trigger>
+                <Tabs.Trigger value="upgrade">Agent 升级</Tabs.Trigger>
+              </Tabs.List>
+              <Tabs.Content value="threshold" className="pt-3">
+            <Text as="div" size="2" mb="2">{t("admin.nodeEdit.trafficLimitType")}</Text>
+            <div className="overflow-x-auto">
+              <SegmentedControl.Root aria-label="流量统计方式" value={traffic_limit_type} onValueChange={setTrafficLimitType}>
+                {["sum", "max", "min", "up", "down"].map((type) => <SegmentedControl.Item key={type} value={type}>{t(`admin.nodeEdit.trafficLimitType_${type}`)}</SegmentedControl.Item>)}
+              </SegmentedControl.Root>
+            </div>
             <SettingCardShortTextInput
               bordless
               title={t("admin.nodeEdit.trafficLimit")}
@@ -2993,7 +3015,11 @@ function EditButton({ node }: { node: NodeDetail }) {
                 </span>
               ) : null}
             </SettingCardShortTextInput>
-          </SettingCardCollapse>
+              </Tabs.Content>
+              <Tabs.Content value="reset" className="pt-3">{open && <AgentTrafficSettings uuid={node.uuid} />}</Tabs.Content>
+              <Tabs.Content value="upgrade" className="pt-3">{open && <AgentUpgradeSettings uuid={node.uuid} version={node.version} onUpdated={refresh} />}</Tabs.Content>
+            </Tabs.Root>
+          </section>
         </div>
         <Flex gap="2" justify={"end"} className="mt-4">
           <Button
