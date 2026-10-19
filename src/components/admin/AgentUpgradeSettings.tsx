@@ -67,8 +67,9 @@ export default function AgentUpgradeSettings({ uuid, version }: { uuid: string; 
     <TextArea aria-label="SSH Agent 更换命令" readOnly value={replacement?.command || (loading ? "正在生成…" : "")} style={{ minHeight: fallback ? 260 : 180, fontFamily: "monospace", fontSize: 12 }} onFocus={(event) => event.currentTarget.select()} />
     <Button type="button" disabled={!replacement || loading} onClick={copy}>复制 SSH 更换命令</Button>
     <Text size="2">1. SSH 登录目标机。2. 粘贴完整命令执行，终端显示下载及 1～6 步进度。3. 返回此页，等待“已确认支持”，再修改流量重置日。</Text>
+    <Text size="2" color="amber">务必在你自己的 SSH 客户端里执行，不要在面板 Web 终端里运行：该终端由当前 Agent 提供，执行到停 Agent 一步会当场断开并中断升级。脚本现在会检测并拒绝这种环境（不产生任何改动），遇到拒绝提示请换用自己的 SSH。</Text>
     <Text size="1" color="gray">适用 Linux amd64/arm64、运行中的持久化 systemd 服务，需 root 或 sudo。自动选架构并校验 SHA-256，先下载后停服务；保留节点身份、启动参数、重置日和流量历史，不重装、不重新注册。Docker、Alpine/OpenRC、Windows 不适用，命令会停止而不是猜测安装方式。</Text>
-    <Text size="1" color="gray">失败会尝试恢复旧二进制，并打印备份目录。查看服务：systemctl status komari-agent；日志：journalctl -u komari-agent -n 50（自定义服务名需相应替换）。更换后版本来源为你的 fork，原有自动更新选项保持不变。</Text>
+    <Text size="1" color="gray">失败会自动回滚旧程序，并打印备份目录；回滚与收尾日志写入目标机上的 manual-upgrade.log。若提示“An upgrade lock exists”，确认没有升级进程后删除该空目录再重试。查看服务：systemctl status komari-agent；日志：journalctl -u komari-agent -n 50（自定义服务名需相应替换）。更换后版本来源为你的 fork，原有自动更新选项保持不变（fork 内置更新源仍是官方仓库，见文档说明）。</Text>
     {replacement && <a href={replacement.release} target="_blank" rel="noreferrer" className="text-sm underline">查看固定版本及校验文件</a>}
   </Flex>;
 }
