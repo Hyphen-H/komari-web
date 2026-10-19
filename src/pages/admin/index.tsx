@@ -96,6 +96,7 @@ import {
 import ClassificationManager from "@/components/admin/ClassificationManager";
 import ClassificationPicker from "@/components/admin/ClassificationPicker";
 import TagEditor, { parseEditableTag } from "@/components/admin/TagEditor";
+import AgentTrafficSettings from "@/components/admin/AgentTrafficSettings";
 
 type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc";
 
@@ -1747,6 +1748,20 @@ function GenerateCommandButton({
 }) {
   const [selectedPlatform, setSelectedPlatform] =
     React.useState<Platform>("linux");
+  const [commandOpen, setCommandOpen] = React.useState(false);
+  const [managedResetDay, setManagedResetDay] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!commandOpen) return;
+    let cancelled = false;
+    setManagedResetDay(null);
+    fetch(`/api/admin/client/${node.uuid}/traffic-config`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((config) => {
+        if (!cancelled) setManagedResetDay(config?.managed ? config.day : null);
+      })
+      .catch(() => { if (!cancelled) setManagedResetDay(null); });
+    return () => { cancelled = true; };
+  }, [commandOpen, node.uuid]);
   const [installOptions, setInstallOptions] = React.useState<InstallOptions>({
     disableWebSsh: false,
     disableAutoUpdate: false,
@@ -1853,7 +1868,9 @@ function GenerateCommandButton({
       args.push("-i");
       args.push(Number.isFinite(intervalVal) && intervalVal >= 1 ? String(intervalVal) : "1");
     }
-    if (enableMonthRotate) {
+    if (managedResetDay !== null) {
+      args.push("--month-rotate", String(managedResetDay));
+    } else if (enableMonthRotate) {
       const rotateVal = (installOptions.monthRotate || "").trim() || "1"; // 默认 1
       args.push(`--month-rotate`);
       args.push(rotateVal);
@@ -1935,7 +1952,7 @@ function GenerateCommandButton({
   };
   const { t } = useTranslation();
   return (
-    <Dialog.Root>
+    <Dialog.Root open={commandOpen} onOpenChange={setCommandOpen}>
       <Dialog.Trigger>
         <IconButton variant="ghost" title={t("admin.nodeTable.installCommand")}>
           <Download size="18" />
@@ -1945,6 +1962,7 @@ function GenerateCommandButton({
         <Dialog.Title>
           {t("admin.nodeTable.installCommand", "一键部署指令")}
         </Dialog.Title>
+        {managedResetDay !== null && <Callout.Root color="blue" mb="3"><Callout.Text>此节点由主控管理流量重置日，部署指令已使用主控设定值 {managedResetDay}（0 表示禁用）。远程同步仍需安装支持该功能的定制 Agent；普通官方版本仅使用启动参数。</Callout.Text></Callout.Root>}
         <div className="flex flex-col gap-4">
           <SegmentedControl.Root
             value={selectedPlatform}
@@ -2910,6 +2928,7 @@ function EditButton({ node }: { node: NodeDetail }) {
             />
           </div>
           <SettingCardCollapse title={t("admin.nodeEdit.trafficLimit")}>
+            {open && <AgentTrafficSettings uuid={node.uuid} />}
             <SettingCardSelect
               bordless
               title={t("admin.nodeEdit.trafficLimitType")}
