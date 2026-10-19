@@ -97,6 +97,12 @@ import ClassificationPicker from "@/components/admin/ClassificationPicker";
 import TagEditor, { parseEditableTag } from "@/components/admin/TagEditor";
 import AgentTrafficSettings from "@/components/admin/AgentTrafficSettings";
 import AgentUpgradeSettings from "@/components/admin/AgentUpgradeSettings";
+import { DateField } from "@/components/ui/date-field";
+import {
+  dateInputToISOString,
+  normalizeDateInput,
+  toDateInputValue,
+} from "@/utils/dateInput";
 
 type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc";
 type DeploymentNode = Pick<NodeDetail, "uuid" | "token" | "name">;
@@ -3285,6 +3291,14 @@ function BillingButton({ node }: { node: NodeDetail }) {
     node.auto_renewal || false
   );
   const [currency, setCurrency] = React.useState<string>(node.currency || "$");
+  const [expireDate, setExpireDate] = React.useState<string>(() =>
+    toDateInputValue(node.expired_at)
+  );
+  const [expireDateTouched, setExpireDateTouched] = React.useState(false);
+  const handleExpireDateChange = React.useCallback((value: string) => {
+    setExpireDate(value);
+    setExpireDateTouched(true);
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3303,9 +3317,16 @@ function BillingButton({ node }: { node: NodeDetail }) {
         (formData.get("billingCycle") as string) || "30"
       );
       const expiredAtValue = (formData.get("expiredAt") as string) || "";
-      const expiredAt = expiredAtValue
-        ? new Date(`${expiredAtValue}T00:00:00Z`).toISOString()
-        : null;
+      if (expiredAtValue.trim() && normalizeDateInput(expiredAtValue) === null) {
+        toast.error(
+          t(
+            "admin.nodeTable.invalidDate",
+            "日期格式不正确，请输入如 20261104 或 2026-11-04"
+          )
+        );
+        return;
+      }
+      const expiredAt = dateInputToISOString(expiredAtValue);
       const currencyValue = (formData.get("currency") as string) || "$";
 
       await fetch(`/api/admin/client/${node.uuid}/edit`, {
@@ -3313,7 +3334,8 @@ function BillingButton({ node }: { node: NodeDetail }) {
         body: JSON.stringify({
           price,
           billing_cycle: billingCycleValue,
-          expired_at: expiredAt,
+          // 未改动到期日时不提交该字段，避免把旧数据（如零值时间）覆盖成 null
+          ...(expireDateTouched ? { expired_at: expiredAt } : {}),
           currency: currencyValue,
           auto_renewal: autoRenewal,
         }),
@@ -3385,38 +3407,42 @@ function BillingButton({ node }: { node: NodeDetail }) {
           />
 
             <Flex gap="2" align="center">
-              <label className="font-bold">
+              <label className="font-bold flex items-center gap-1">
                 {t("admin.nodeTable.expiredAt")}
+                <Tips>
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: t("admin.nodeTable.expiredAtTips"),
+                    }}
+                  ></span>
+                </Tips>
               </label>
             </Flex>
-            <TextField.Root
+            <DateField
               name="expiredAt"
-              defaultValue={
-                node.expired_at
-                  ? new Date(node.expired_at).toISOString().slice(0, 10)
-                  : "0001-01-01"
-              }
-              type="date"
-            >
-              <TextField.Slot side="right">
+              value={expireDate}
+              onChange={handleExpireDateChange}
+              placeholder={t(
+                "admin.nodeTable.expiredAtPlaceholder",
+                "YYYYMMDD"
+              )}
+              ariaLabel={t("admin.nodeTable.expiredAt")}
+              side={
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    const dateInput = document.querySelector(
-                      'input[name="expiredAt"]'
-                    ) as HTMLInputElement;
-                    if (dateInput) {
-                      const futureDate = new Date();
-                      futureDate.setFullYear(futureDate.getFullYear() + 200);
-                      dateInput.value = futureDate.toISOString().slice(0, 10);
-                    }
+                    const futureDate = new Date();
+                    futureDate.setFullYear(futureDate.getFullYear() + 200);
+                    handleExpireDateChange(
+                      futureDate.toISOString().slice(0, 10)
+                    );
                   }}
                 >
                   {t("admin.nodeTable.setToLongTerm", "设置为长期")}
                 </Button>
-              </TextField.Slot>
-            </TextField.Root>
+              }
+            />
             <Flex gap="2" align="center"></Flex>
             <SettingCardSwitch
               title={t("admin.nodeTable.autoRenewal")}
