@@ -79,6 +79,7 @@ import {
 } from "@/components/ui/drawer";
 import { formatBytes, stringToBytes } from "@/utils/unitHelper";
 import PriceTags from "@/components/PriceTags";
+import { getBillingValues } from "@/utils/billing";
 import Loading from "@/components/loading";
 import Tips from "@/components/ui/tips";
 import {
@@ -104,7 +105,22 @@ import {
   toDateInputValue,
 } from "@/utils/dateInput";
 
-type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc";
+type NodeSort = "weight" | "created-desc" | "created-asc" | "region-asc" | "region-desc" | "remaining-time" | "monthly-value" | "remaining-value";
+
+function getNodeRemainingDays(node: NodeDetail): number {
+  if (!node.expired_at) return Number.POSITIVE_INFINITY;
+  const end = new Date(node.expired_at).getTime();
+  if (!Number.isFinite(end)) return Number.POSITIVE_INFINITY;
+  return Math.ceil((end - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+function getNodeMonthlyValue(node: NodeDetail): number {
+  const price = Number(node.price) || 0;
+  if (price <= 0) return 0;
+  const cycle = Number(node.billing_cycle);
+  if (!Number.isFinite(cycle) || cycle <= 0) return price;
+  return (price / cycle) * 30;
+}
 
 const compareCreatedAt = (a: NodeDetail, b: NodeDetail, newestFirst: boolean) => {
   const left = Date.parse(a.created_at);
@@ -189,6 +205,17 @@ const Layout = () => {
             }
             // 同一国家/地区内按添加时间从新到旧排列，让新节点优先出现
             return compareCreatedAt(a, b, true);
+          }
+          if (sortBy === "remaining-time") {
+            return getNodeRemainingDays(a) - getNodeRemainingDays(b);
+          }
+          if (sortBy === "monthly-value") {
+            return getNodeMonthlyValue(b) - getNodeMonthlyValue(a);
+          }
+          if (sortBy === "remaining-value") {
+            const left = getBillingValues(a.price, a.billing_cycle, a.expired_at).remaining;
+            const right = getBillingValues(b.price, b.billing_cycle, b.expired_at).remaining;
+            return right - left;
           }
           return a.weight - b.weight;
         })
@@ -1243,6 +1270,10 @@ const Header = ({
             <Select.Item value="created-asc">添加时间：旧到新</Select.Item>
             <Select.Item value="region-asc">国家代码：A → Z</Select.Item>
             <Select.Item value="region-desc">国家代码：Z → A</Select.Item>
+            <Select.Separator />
+            <Select.Item value="remaining-time">剩余时间：少 → 多</Select.Item>
+            <Select.Item value="monthly-value">月价值：高 → 低</Select.Item>
+            <Select.Item value="remaining-value">剩余价值：高 → 低</Select.Item>
           </Select.Content>
         </Select.Root>
         <TextField.Root
