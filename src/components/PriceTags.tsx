@@ -1,6 +1,7 @@
 import { Badge, Flex } from "@radix-ui/themes";
 import { useTranslation } from "react-i18next";
 import { isRegionCodeTag } from "@/utils/regionHelper";
+import { formatCurrencyValue, getBillingValues } from "@/utils/billing";
 
 const PriceTags = ({
   price = 0,
@@ -115,6 +116,28 @@ const PriceTags = ({
           })()}
         </label>
       </Badge>
+      {price > 0 && (() => {
+        const { used, remaining } = getBillingValues(
+          price,
+          billing_cycle,
+          expired_at
+        );
+        return (
+          <>
+            <Badge color="gray" size="1" variant="soft" className="text-sm">
+              <label className="text-xs">
+                {t("common.usedValue")} {formatCurrencyValue(used, currency)}
+              </label>
+            </Badge>
+            <Badge color="teal" size="1" variant="soft" className="text-sm">
+              <label className="text-xs">
+                {t("common.remainingValue")}{" "}
+                {formatCurrencyValue(remaining, currency)}
+              </label>
+            </Badge>
+          </>
+        );
+      })()}
       <CustomTags tags={tags} />
     </Flex>
   );

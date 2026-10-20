@@ -556,6 +556,8 @@
     "remark": "Remark",
     "reset": "Reset",
     "retry": "Retry",
+    "remainingValue": "Remaining value",
+    "usedValue": "Used value",
     "save": "Save",
     "search": "Search",
     "select": "Select",

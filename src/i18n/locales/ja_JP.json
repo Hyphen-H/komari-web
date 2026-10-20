@@ -328,6 +328,8 @@
     "remark": "備考",
     "reset": "リセット",
     "retry": "再試行",
+    "remainingValue": "残存価値",
+    "usedValue": "使用済み価値",
     "save": "保存",
     "search": "検索",
     "select": "選択",

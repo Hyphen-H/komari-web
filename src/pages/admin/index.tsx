@@ -3292,12 +3292,12 @@ function BillingButton({ node }: { node: NodeDetail }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [billingCycle, setBillingCycle] = React.useState<string>(
-    node.billing_cycle.toString()
+    node.billing_cycle ? node.billing_cycle.toString() : "365"
   );
   const [autoRenewal, setAutoRenewal] = React.useState<boolean>(
     node.auto_renewal || false
   );
-  const [currency, setCurrency] = React.useState<string>(node.currency || "$");
+  const [currency, setCurrency] = React.useState<string>(node.currency || "￥");
   const [expireDate, setExpireDate] = React.useState<string>(() =>
     toDateInputValue(node.expired_at)
   );
@@ -3321,7 +3321,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
         return;
       }
       const billingCycleValue = parseInt(
-        (formData.get("billingCycle") as string) || "30"
+        (formData.get("billingCycle") as string) || "365"
       );
       const expiredAtValue = (formData.get("expiredAt") as string) || "";
       if (expiredAtValue.trim() && normalizeDateInput(expiredAtValue) === null) {
@@ -3334,7 +3334,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
         return;
       }
       const expiredAt = dateInputToISOString(expiredAtValue);
-      const currencyValue = (formData.get("currency") as string) || "$";
+      const currencyValue = (formData.get("currency") as string) || "￥";
 
       await fetch(`/api/admin/client/${node.uuid}/edit`, {
         method: "POST",
