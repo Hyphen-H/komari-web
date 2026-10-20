@@ -347,6 +347,8 @@
     "success": "Berhasil",
     "clear": "Hapus",
     "tags": "Tag",
+    "multiSelect": "Multi-pilih",
+    "multiSelectHint": "Filter multi-tag: pertahankan tag terpilih dan cocokkan semuanya. Saat nonaktif, memilih tag lain menggantikan tag sebelumnya.",
     "tagsDescription": "Beberapa tag dipisahkan dengan ';'",
     "tagsTips": "Beberapa tag dipisahkan dengan “;”. </br> Untuk menentukan warna, tambahkan &lt;color&gt; di akhir label, misal 1Gbps&lt;green&gt;.</br> Daftar warna tersedia di <label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color - Radix Themes</a></label>",
     "threshold": "Ambang Batas",

@@ -576,6 +576,8 @@
     "success": "Success",
     "clear": "Clear",
     "tags": "Tags",
+    "multiSelect": "Multi-select",
+    "multiSelectHint": "Multi-tag filter: keep selected tags (nodes must match all of them). When off, choosing another tag replaces the previous one.",
     "tagsDescription": "Multiple tags separated by ';'",
     "tagsTips": "Multiple tags are separated by “;”. </br>  To specify a color, add &lt;color&gt; to the end of the label, e.g. 1Gbps&lt;green&gt;.</br>  A list of available colors can be found at <label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color - Radix Themes</a></label>",
     "threshold": "Threshold",

@@ -1,4 +1,4 @@
-// 后台节点列表标签筛选回归：多选标签必须是交集（全部满足），不是并集。
+// 后台节点列表标签筛选回归：默认单选（后选替换先选）；开启“多选”后保留已选，按交集（全部满足）过滤。
 // Start komari-web dev server first; all API requests are mocked, never live.
 const {chromium} = await import(process.env.PLAYWRIGHT_MODULE || '../../theme/node_modules/playwright-core/index.mjs');
 import assert from 'node:assert/strict';
@@ -30,17 +30,32 @@ try {
   const tagBar=page.locator('div.rt-Flex').filter({has:page.getByText('标签',{exact:true})}).last();
   const names=async()=>(await page.locator('tbody tr td:nth-child(3)').allInnerTexts()).map(s=>s.trim());
   const clickTag=async tag=>{await tagBar.getByText(tag,{exact:true}).click();};
+  const multi=page.getByRole('button',{name:'多选',exact:true});
+  assert.equal(await multi.getAttribute('aria-pressed'),'false','Multi-select defaults to off');
+  assert(await tagBar.evaluate(el=>el.firstElementChild?.textContent?.trim().startsWith('多选')),'Multi-select toggle sits at the left edge');
   assert.deepEqual((await names()).sort(),['Alpha','Beta','Gamma']);
   await clickTag('ISP');
   await page.waitForTimeout(200);
   assert.deepEqual((await names()).sort(),['Alpha','Beta'],'Single tag keeps all matching nodes');
   await clickTag('GPU');
   await page.waitForTimeout(200);
-  assert.deepEqual((await names()).sort(),['Alpha'],'Multiple tags must require every selected tag');
+  assert.deepEqual((await names()).sort(),['Alpha','Gamma'],'Single-select replaces the previous tag');
+  await multi.click();
+  assert.equal(await multi.getAttribute('aria-pressed'),'true');
   await clickTag('ISP');
   await page.waitForTimeout(200);
-  assert.deepEqual((await names()).sort(),['Alpha','Gamma'],'Deselecting one tag narrows back to remaining tag');
+  assert.deepEqual((await names()).sort(),['Alpha'],'Multi-select requires every selected tag (AND) and keeps the previous one');
+  await clickTag('GPU');
+  await page.waitForTimeout(200);
+  assert.deepEqual((await names()).sort(),['Alpha','Beta'],'Deselecting one tag narrows back to remaining tag');
+  await multi.click();
+  await page.waitForTimeout(200);
+  assert.equal(await multi.getAttribute('aria-pressed'),'false');
+  assert.deepEqual((await names()).sort(),['Alpha','Beta'],'Disabling multi-select collapses to the latest tag');
+  await clickTag('GPU');
+  await page.waitForTimeout(200);
+  assert.deepEqual((await names()).sort(),['Alpha','Gamma'],'Single-select replaces again after multi is off');
   assert.equal(errors.length,0,errors.join('\n'));
-  console.log('PASS tag filter: multi-select requires all selected tags (AND)');
+  console.log('PASS tag filter: default single-select replace, multi-select keeps selection and requires all (AND)');
   await context.close();
 } finally {await browser.close();}

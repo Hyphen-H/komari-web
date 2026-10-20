@@ -149,6 +149,15 @@ const Layout = () => {
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // 标签多选开关：默认关闭（单选，选新标签会替换旧标签）；开启后保留已选标签并做多重筛选。
+  const [multiTagFilter, setMultiTagFilter] = useState(false);
+  const toggleMultiTagFilter = () => {
+    if (multiTagFilter) {
+      // 关闭多选时只保留最近选择的标签，避免开关已关闭却仍处于多标签过滤状态。
+      setSelectedTags((prev) => (prev.length > 1 ? [prev[prev.length - 1]] : prev));
+    }
+    setMultiTagFilter((prev) => !prev);
+  };
   const [sortBy, setSortBy] = useState<NodeSort>("weight");
 
   // 所有已使用的分组
@@ -245,6 +254,8 @@ const Layout = () => {
         setSelectedGroup={setSelectedGroup}
         selectedTags={selectedTags}
         setSelectedTags={setSelectedTags}
+        multiTagFilter={multiTagFilter}
+        toggleMultiTagFilter={toggleMultiTagFilter}
         sortBy={sortBy}
         setSortBy={setSortBy}
       />
@@ -1173,6 +1184,8 @@ const Header = ({
   setSelectedGroup,
   selectedTags,
   setSelectedTags,
+  multiTagFilter,
+  toggleMultiTagFilter,
   sortBy,
   setSortBy,
 }: {
@@ -1187,6 +1200,8 @@ const Header = ({
   setSelectedGroup: (group: string) => void;
   selectedTags: string[];
   setSelectedTags: React.Dispatch<React.SetStateAction<string[]>>;
+  multiTagFilter: boolean;
+  toggleMultiTagFilter: () => void;
   sortBy: NodeSort;
   setSortBy: (sort: NodeSort) => void;
 }) => {
@@ -1407,6 +1422,17 @@ const Header = ({
           )}
           {tags.length > 0 && (
             <Flex gap="2" align="center" wrap="wrap">
+              <Badge
+                role="button"
+                aria-pressed={multiTagFilter}
+                title={t("common.multiSelectHint")}
+                variant={multiTagFilter ? "solid" : "outline"}
+                color={multiTagFilter ? undefined : "gray"}
+                style={{ cursor: "pointer", userSelect: "none" }}
+                onClick={toggleMultiTagFilter}
+              >
+                {t("common.multiSelect")}
+              </Badge>
               <Text size="2" color="gray">
                 {t("common.tags")}
               </Text>
@@ -1417,13 +1443,14 @@ const Header = ({
                     key={tag}
                     variant={active ? "solid" : "outline"}
                     color={active ? undefined : "gray"}
+                    aria-pressed={active}
                     style={{ cursor: "pointer", userSelect: "none" }}
                     onClick={() =>
-                      setSelectedTags((prev) =>
-                        prev.includes(tag)
-                          ? prev.filter((value) => value !== tag)
-                          : [...prev, tag],
-                      )
+                      setSelectedTags((prev) => {
+                        if (prev.includes(tag)) return prev.filter((value) => value !== tag);
+                        if (!multiTagFilter) return [tag];
+                        return [...prev, tag];
+                      })
                     }
                   >
                     {tag}

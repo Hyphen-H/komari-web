@@ -421,6 +421,8 @@
     "success": "成功",
     "clear": "清除",
     "tags": "標籤",
+    "multiSelect": "多選",
+    "multiSelectHint": "多選標籤篩選：開啟後保留已選標籤並同時符合；關閉後選擇新標籤會取代原標籤",
     "tagsDescription": "多個標籤用';'分隔",
     "tagsTips": "多個標籤使用\";\"隔開。</br> 如需指定顏色，請在標籤末尾新增&lt;color&gt;，例如：1Gbps&lt;green&gt;。</br> 可用的顏色列表請參考：<label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color – Radix Themes</a></label>",
     "threshold": "閾值",

@@ -348,6 +348,8 @@
     "success": "成功",
     "clear": "クリア",
     "tags": "タグ",
+    "multiSelect": "複数選択",
+    "multiSelectHint": "複数タグ絞り込み：有効にすると選択済みタグを保持しすべて一致で絞り込みます。無効時は新しいタグを選ぶと前のタグが外れます。",
     "tagsDescription": "複数のタグは';'で区切ります",
     "tagsTips": "複数のタグは\";\"で区切ります。</br> 色を指定するには、タグの末尾に&lt;color&gt;を追加してください。例：1Gbps&lt;green&gt;。</br> 使用可能な色のリストは、<label class=\"bg-accent-a5 rounded-sm\"><a href=\"https://www.radix-ui.com/themes/docs/theme/color\" target=\"_blank\"> Color – Radix Themes</a></label>を参照してください。",
     "threshold": "閾値",
