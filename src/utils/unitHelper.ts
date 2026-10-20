@@ -93,6 +93,23 @@ export function stringToBytes(str: string): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
+/**
+ * 解析「流量」输入：单位缺省按 G（GB）计算。
+ * 支持 "1000"（= 1000 GB）、"1.5T"、"500M"、"2 TB"、"100GB" 等写法；
+ * 单位识别与换算复用 {@link stringToBytes}（1024 进制，支持 B/K/M/G/T/P 及 KiB/GiB 形式）。
+ * @param input - 用户输入的原始文本。
+ * @returns - 字节数；空输入返回 0（表示不限制）；无法解析返回 null。
+ */
+export function parseTrafficBytes(input: string): number | null {
+  const raw = (input ?? "").trim();
+  if (!raw) return 0;
+  // 没有字母单位时按 G 处理，例如 "1000" 视为 1000 GB
+  if (!/[a-zA-Z]/.test(raw)) {
+    return stringToBytes(`${raw}G`);
+  }
+  return stringToBytes(raw);
+}
+
 export function formatBytes(bytes: number): string {
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
   let size = bytes;

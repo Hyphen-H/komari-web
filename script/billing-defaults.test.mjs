@@ -41,7 +41,7 @@ try {
   assert.ok(editPayload,'save request was not sent');
   assert.equal(editPayload.billing_cycle,365);
   assert.equal(editPayload.currency,'￥');
-  const billingCell=(await page.locator('tbody tr').filter({hasText:'Beta'}).locator('td').nth(9).innerText()).replace(/\s+/g,' ');
+  const billingCell=(await page.locator('tbody tr').filter({hasText:'Beta'}).locator('td').nth(7).innerText()).replace(/\s+/g,' ');
   assert.ok(billingCell.includes('已用价值'),'billing list must show used value');
   assert.ok(billingCell.includes('剩余价值'),'billing list must show remaining value');
   assert.equal(errors.length,0,errors.join('\n'));

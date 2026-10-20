@@ -77,7 +77,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { formatBytes, stringToBytes } from "@/utils/unitHelper";
+import { formatBytes, parseTrafficBytes, stringToBytes } from "@/utils/unitHelper";
 import PriceTags from "@/components/PriceTags";
 import { getBillingValues } from "@/utils/billing";
 import Loading from "@/components/loading";
@@ -1201,9 +1201,16 @@ const Header = ({
   const [newGroup, setNewGroup] = useState("");
   const [newTags, setNewTags] = useState("");
   const [newRegion, setNewRegion] = useState("");
+  const [newTraffic, setNewTraffic] = useState("");
+  const trafficBytes = useMemo(() => parseTrafficBytes(newTraffic), [newTraffic]);
+  const trafficInvalid = newTraffic.trim() !== "" && trafficBytes === null;
   const inputRef = React.useRef<HTMLInputElement>(null);
   const handleAddNode = async (name: string | undefined) => {
     if (creatingRef.current) return;
+    if (trafficInvalid) {
+      toast.error(t("admin.nodeTable.trafficInvalid", "流量格式无法解析，请先修正"));
+      return;
+    }
     creatingRef.current = true;
     setLoading(true);
     try {
@@ -1223,11 +1230,32 @@ const Header = ({
       if (typeof identity.uuid !== "string" || !identity.uuid || typeof identity.token !== "string" || !identity.token) {
         throw new Error("节点创建响应缺少身份信息，请刷新列表检查，勿重复创建");
       }
+      // 新增接口不接收流量，创建成功后补写一次流量阈值
+      if (trafficBytes && trafficBytes > 0) {
+        try {
+          const editResponse = await fetch(`/api/admin/client/${identity.uuid}/edit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              traffic_limit: trafficBytes,
+              traffic_limit_type: "sum",
+            }),
+          });
+          if (!editResponse.ok) throw new Error(`HTTP ${editResponse.status}`);
+        } catch (error) {
+          toast.error(
+            `${t("common.error", "Error")}: ${
+              error instanceof Error ? error.message : String(error)
+            }（节点已创建，可稍后在编辑里补填流量）`
+          );
+        }
+      }
       setCreatedNode({ uuid: identity.uuid, token: identity.token, name: name?.trim() || `client_${identity.uuid.slice(0, 8)}` });
       refresh();
       setNewGroup("");
       setNewTags("");
       setNewRegion("");
+      setNewTraffic("");
       setDialogOpen(false);
     } catch (error) {
       toast.error(
@@ -1307,6 +1335,21 @@ const Header = ({
               <div>
                 <Text as="label" size="2" weight="medium">标签</Text>
                 <TagChipInput value={newTags} options={tags} onChange={setNewTags} placeholder="输入后按回车添加" />
+              </div>
+              <div>
+                <Text as="label" size="2" weight="medium">流量</Text>
+                <TextField.Root
+                  placeholder="1000"
+                  value={newTraffic}
+                  onChange={(e) => setNewTraffic(e.currentTarget.value)}
+                />
+                <Text size="1" color={trafficInvalid ? "red" : "gray"} as="div" mt="1">
+                  {trafficInvalid
+                    ? t("admin.nodeTable.trafficInvalidHint", "无法解析，请输入如 1000 / 1.5T / 500M")
+                    : trafficBytes
+                      ? `单位缺省按 G 计算 · ${formatBytes(trafficBytes)}`
+                      : t("admin.nodeTable.trafficHint", "单位缺省按 G 计算，也支持 1.5T / 500M / 2TB；留空表示不限制")}
+                </Text>
               </div>
             </Flex>
             <Flex justify="end" gap="2" mt="4">
@@ -1497,7 +1540,6 @@ const SortableRow = ({
           )}
         </Flex>
       </TableCell>
-      <TableCell>{node.version}</TableCell>
       <TableCell>
         <Flex align="center" gap="1">
           {node.region ? <Flag flag={node.region} /> : null}
@@ -1505,7 +1547,7 @@ const SortableRow = ({
         </Flex>
       </TableCell>
       <TableCell>
-        <Text size="2" title={node.created_at}>
+        <Text size="2" title={node.created_at} style={{ whiteSpace: "nowrap" }}>
           {node.created_at ? new Date(node.created_at).toLocaleString() : "-"}
         </Text>
       </TableCell>
@@ -1525,23 +1567,7 @@ const SortableRow = ({
             : node.group}
         </Text>
       </TableCell>
-      <TableCell>
-        <Text
-          size="2"
-          title={node.remark}
-          style={{
-            maxWidth: "150px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {node.remark && node.remark.length > 10
-            ? `${node.remark.slice(0, 10)}...`
-            : node.remark}
-        </Text>
-      </TableCell>
-      <TableCell>
+      <TableCell style={{ maxWidth: 260 }}>
         <PriceTags
           price={node.price}
           billing_cycle={node.billing_cycle}
@@ -1556,6 +1582,19 @@ const SortableRow = ({
           settings={settings}
           isSnapshotBackend={isSnapshotBackend}
         />
+      </TableCell>
+      <TableCell>
+        {/* 备注完整展示：字号不变，靠换行 + 横向滚动容纳长文本 */}
+        <div className="min-w-[220px] max-w-[380px] whitespace-normal break-words">
+          <Text size="2" title={node.remark}>
+            {node.remark || "-"}
+          </Text>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Text size="2" style={{ whiteSpace: "nowrap" }}>
+          {node.version || "-"}
+        </Text>
       </TableCell>
     </TableRow>
   );
@@ -1664,7 +1703,7 @@ const NodeTable = ({
         onDragStart={handleDragStart}
         onDragEnd={sortable ? handleDragEnd : undefined}
       >
-        <Table>
+        <Table className="km-node-table">
           <TableHeader style={{ backgroundColor: "var(--accent-4)" }}>
             <TableRow>
               <TableHead>{sortable ? "排序" : ""}</TableHead>
@@ -1679,13 +1718,13 @@ const NodeTable = ({
               </TableHead>
               <TableHead>{t("admin.nodeTable.name")}</TableHead>
               <TableHead>{t("admin.nodeDetail.ipAddress")}</TableHead>
-              <TableHead>{t("admin.nodeDetail.clientVersion")}</TableHead>
               <TableHead>国家</TableHead>
               <TableHead>添加时间</TableHead>
               <TableHead>{t("common.group")}</TableHead>
-              <TableHead>{t("admin.nodeEdit.remark")}</TableHead>
               <TableHead>{t("admin.nodeTable.billing")}</TableHead>
               <TableHead></TableHead>
+              <TableHead>{t("admin.nodeEdit.remark")}</TableHead>
+              <TableHead>{t("admin.nodeDetail.clientVersion")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

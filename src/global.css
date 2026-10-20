@@ -277,3 +277,8 @@ body, * {
 .km-login-card {
   border-radius: 8px;
 }
+
+/* 节点列表：列较多时保持可读宽度，横向滚动查看最右侧栏目（备注 / 客户端版本） */
+.km-node-table {
+  min-width: 1480px;
+}
