@@ -232,7 +232,7 @@ const Layout = () => {
   const isEmpty = Array.isArray(nodeDetail) && nodeDetail.length === 0;
 
   return (
-    <Flex direction="column" gap="4" p="4" className="km-page-admin-index">
+    <Flex direction="column" gap="4" px="4" pt="4" className="km-page-admin-index">
       <Header
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -1691,9 +1691,131 @@ const NodeTable = ({
         : selectedNodes.filter((id) => id !== uuid)
     );
   };
+  // 横向滚动条常驻页底：自绘滑块跟随表格滚动位置，避免依赖系统滚动条（部分环境不显示）
+  const tableWrapRef = React.useRef<HTMLDivElement>(null);
+  const scrollTrackRef = React.useRef<HTMLDivElement>(null);
+  const [scrollInfo, setScrollInfo] = useState({
+    left: 0,
+    total: 0,
+    viewport: 0,
+  });
+
+  const getTableContainer = React.useCallback(
+    () =>
+      tableWrapRef.current?.querySelector<HTMLElement>(
+        '[data-slot="table-container"]'
+      ) ?? null,
+    []
+  );
+
+  const syncScrollInfo = React.useCallback(() => {
+    const container = getTableContainer();
+    if (!container) return;
+    setScrollInfo({
+      left: container.scrollLeft,
+      total: container.scrollWidth,
+      viewport: container.clientWidth,
+    });
+  }, [getTableContainer]);
+
+  React.useEffect(() => {
+    syncScrollInfo();
+    const container = getTableContainer();
+    if (!container) return;
+    const handleScroll = () => syncScrollInfo();
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    const observer = new ResizeObserver(syncScrollInfo);
+    observer.observe(container);
+    const table = container.querySelector("table");
+    if (table) observer.observe(table);
+    window.addEventListener("resize", syncScrollInfo);
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      observer.disconnect();
+      window.removeEventListener("resize", syncScrollInfo);
+    };
+  }, [getTableContainer, syncScrollInfo, localNodes]);
+
+  const scrollTableTo = React.useCallback(
+    (next: number) => {
+      const container = getTableContainer();
+      if (!container) return;
+      const max = Math.max(0, container.scrollWidth - container.clientWidth);
+      container.scrollLeft = Math.max(0, Math.min(max, next));
+    },
+    [getTableContainer]
+  );
+
+  // 拖动滑块
+  const handleThumbPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const container = getTableContainer();
+    const track = scrollTrackRef.current;
+    if (!container || !track) return;
+    const thumb = event.currentTarget;
+    thumb.setPointerCapture(event.pointerId);
+    const trackWidth = track.getBoundingClientRect().width || 1;
+    const ratio = container.scrollWidth / trackWidth;
+    const startX = event.clientX;
+    const startLeft = container.scrollLeft;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      scrollTableTo(startLeft + (moveEvent.clientX - startX) * ratio);
+    };
+    const onPointerUp = () => {
+      thumb.removeEventListener("pointermove", onPointerMove);
+      thumb.removeEventListener("pointerup", onPointerUp);
+    };
+    thumb.addEventListener("pointermove", onPointerMove);
+    thumb.addEventListener("pointerup", onPointerUp);
+  };
+
+  // 点击轨道：跳转到点击位置
+  const handleTrackPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    const container = getTableContainer();
+    const track = scrollTrackRef.current;
+    if (!container || !track) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = container.scrollWidth / (rect.width || 1);
+    const thumbWidth = (container.clientWidth / container.scrollWidth) * rect.width;
+    scrollTableTo((event.clientX - rect.left) * ratio - thumbWidth / 2);
+  };
+
+  const handleScrollKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const container = getTableContainer();
+    if (!container) return;
+    const step = 120;
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      scrollTableTo(container.scrollLeft + step);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      scrollTableTo(container.scrollLeft - step);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      scrollTableTo(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      scrollTableTo(container.scrollWidth);
+    }
+  };
+
+  const hasOverflow = scrollInfo.total > scrollInfo.viewport + 4;
+  const thumbWidthPercent = scrollInfo.total
+    ? Math.min(100, (scrollInfo.viewport / scrollInfo.total) * 100)
+    : 100;
+  const thumbLeftPercent = scrollInfo.total
+    ? (scrollInfo.left / scrollInfo.total) * 100
+    : 0;
+
   return (
+    <>
     <div
-      className={`rounded-md overflow-hidden ${
+      ref={tableWrapRef}
+      className={`km-node-table-wrap rounded-md overflow-hidden ${
         isDragging ? "select-none" : ""
       }`}
     >
@@ -1748,6 +1870,38 @@ const NodeTable = ({
         </Table>
       </DndContext>
     </div>
+    {hasOverflow && (
+      <div
+        className="sticky bottom-0 z-30 px-1 pt-1"
+        style={{ background: "var(--accent-1)" }}
+      >
+        <div
+          ref={scrollTrackRef}
+          role="scrollbar"
+          tabIndex={0}
+          aria-label="节点列表横向滚动"
+          aria-valuemin={0}
+          aria-valuemax={Math.max(0, scrollInfo.total - scrollInfo.viewport)}
+          aria-valuenow={Math.round(scrollInfo.left)}
+          onPointerDown={handleTrackPointerDown}
+          onKeyDown={handleScrollKeyDown}
+          className="km-node-table-scrollbar relative h-2.5 cursor-pointer rounded-full"
+          style={{ background: "var(--accent-3)" }}
+        >
+          <div
+            className="absolute top-0 h-full rounded-full"
+            style={{
+              left: `${thumbLeftPercent}%`,
+              width: `${thumbWidthPercent}%`,
+              minWidth: 28,
+              background: "var(--accent-9)",
+            }}
+            onPointerDown={handleThumbPointerDown}
+          />
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

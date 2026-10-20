@@ -282,3 +282,27 @@ body, * {
 .km-node-table {
   min-width: 1480px;
 }
+
+/* 表格自身不再显示横向滚动条，统一由常驻页底的滚动条控制 */
+.km-node-table-wrap [data-slot="table-container"] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.km-node-table-wrap [data-slot="table-container"]::-webkit-scrollbar {
+  display: none;
+}
+
+/* 页底常驻的横向滚动条 */
+.km-node-table-scrollbar > div {
+  transition: background-color 150ms ease;
+}
+
+.km-node-table-scrollbar:hover > div {
+  background: var(--accent-8) !important;
+}
+
+.km-node-table-scrollbar:focus-visible {
+  outline: 2px solid var(--accent-8);
+  outline-offset: 2px;
+}
